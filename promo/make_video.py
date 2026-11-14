@@ -271,9 +271,9 @@ def frame(n):
         ctext(img, 1080, "Join channel Telegram", font("SemiBold", 60), WHITE, a)
         if a > 0:
             lay = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(lay)
-            d.rounded_rectangle([190, 1180, W - 190, 1320], 70, fill=TG + (int(255 * a),))
+            d.rounded_rectangle([130, 1180, W - 130, 1320], 70, fill=TG + (int(255 * a),))
             img.alpha_composite(lay)
-        ctext(img, 1210, "iFANG FX", font("Black", 76), WHITE, a)
+        ctext(img, 1212, "t.me/iFangFx", font("Black", 72), WHITE, a)
         ctext(img, 1400, "Follow untuk tips & update trading", font("Medium", 48), MUTED, ease(seg(t, at("outro", 1.6), at("outro", 2.1))))
         ctext(img, 1480, "Kod jemputan: ZIQFX", font("Bold", 56), "gold", ease(seg(t, at("risk") - .2, at("risk", .3))))
 
@@ -281,6 +281,7 @@ def frame(n):
     ov = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(ov)
     if t < S5:  # channel watermark
         logo(img, IFANG, 140, 130, 190, 0.92)
+        d.text((250, 112), "t.me/iFangFx", font=font("SemiBold", 38), fill=WHITE + (200,))
     for i, s in enumerate(["Trading melibatkan risiko. Hanya labur apa yang", "anda sanggup rugi. Bukan nasihat kewangan."]):
         f = font("Regular", 32); w = d.textlength(s, font=f)
         d.text(((W - w) / 2, 1770 + i * 44), s, font=f, fill=MUTED + (220,))

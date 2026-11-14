@@ -4,6 +4,7 @@
 Nak mula trading tapi tak tahu mula dari mana? 📈
 Cuba TRAXA Trading App, guna kod jemputan saya: **ZIQFX** 🔥
 Link di bio 👆
+Join Telegram: t.me/iFangFx
 
 ⚠️ Trading melibatkan risiko. Bukan nasihat kewangan.
 #trading #forex #traxa #tradingmalaysia #belajartrading #fyp
@@ -14,5 +15,7 @@ Link di bio 👆
 Nak mula trading terus dari telefon? Daftar guna link jemputan saya:
 👉 https://traxatradingapp.com/?invite=ZIQFX
 🎟 Kod jemputan: `ZIQFX`
+
+📢 Join channel: https://t.me/iFangFx
 
 ⚠️ Trading melibatkan risiko. Hanya labur apa yang anda sanggup rugi.
