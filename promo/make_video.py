@@ -142,14 +142,15 @@ def shine(img, box, t, radius):
 # ---------- voiceover (Malay neural TTS) + timeline ----------
 VOICE = os.environ.get("VOICE", "ms-MY-OsmanNeural")
 VDIR = os.path.join(HERE, "voice", VOICE)
+RATE = "+15%"
 LINES = [
-    ("hook1", "Nak mula trading?"),
-    ("hook2", "Tapi tak tahu mula dari mana?"),
+    ("hook1", "Masih teka-teka bila nak entry?"),
+    ("hook2", "Biar signal yang datang kat kau."),
     ("brand", "Cuba TRAXA Trading App. Signal trading terus di telefon anda."),
     ("p1", "Ada tiga pair utama: Gold, Bitcoin dan Oil, dengan harga live."),
     ("p2", "Setiap setup ada entry, stop loss dan take profit, siap dengan reason kenapa setup itu dihantar."),
-    ("p3", "Analisis trend lengkap, dari M5 sampai D1."),
-    ("p4", "Dan ada video panduan untuk yang baru mula."),
+    ("p3", "Setup baru, keputusan, amaran berita dan get ready alert, semua terus masuk notifikasi telefon."),
+    ("p4", "Dan analisis trend lengkap, dari M5 sampai D1."),
     ("cta1", "Daftar sekarang, guna kod jemputan saya."),
     ("code", "Z, I, Q, F, X."),
     ("cta2", "Link pendaftaran ada di bio dan pinned."),
@@ -161,9 +162,9 @@ SCENE_START = {"brand", "p1", "p2", "p3", "p4", "cta1", "outro"}  # a new scene 
 def tts(key, text):
     os.makedirs(VDIR, exist_ok=True)
     import hashlib
-    mp3 = os.path.join(VDIR, f"{key}_{hashlib.md5(text.encode()).hexdigest()[:6]}.mp3")
+    mp3 = os.path.join(VDIR, f"{key}_{hashlib.md5((text + RATE).encode()).hexdigest()[:6]}.mp3")
     if not os.path.exists(mp3):  # needs network access to speech.platform.bing.com
-        cmd = ["edge-tts", "--voice", VOICE, "--rate=+8%", "--text", text, "--write-media", mp3]
+        cmd = ["edge-tts", "--voice", VOICE, f"--rate={RATE}", "--text", text, "--write-media", mp3]
         if os.environ.get("HTTPS_PROXY"): cmd[1:1] = ["--proxy", os.environ["HTTPS_PROXY"]]
         subprocess.run(cmd, check=True)
     raw = subprocess.run(["ffmpeg", "-loglevel", "error", "-i", mp3, "-f", "s16le", "-ac", "1", "-ar", "44100", "-"],
@@ -176,6 +177,7 @@ CLIPS, T = {}, {}
 cur = 0.2
 for key, text in LINES:
     if key in SCENE_START: cur += 0.35
+    if key == "brand": cur += 0.7  # let the notification banners land
     a = tts(key, text); CLIPS[key] = a; T[key] = (cur, cur + len(a) / 44100)
     cur = T[key][1] + 0.15
 DUR = cur + 1.2
@@ -192,10 +194,10 @@ SHOTS = [
      [(35, 325, 886, 690, .6)]),
     ("chart", "REASON SETIAP ENTRY", "Entry, SL & TP siap dengan sebab", 130, 0,
      [(72, 630, 848, 706, .8), (372, 1040, 700, 1625, 3.0)]),
+    ("notif", "NOTIFIKASI SETIAP SIGNAL", "Setup baru, keputusan, berita & get ready alert", 130, 0,
+     [(58, 488, 863, 1108, .6), (58, 1197, 863, 1640, 3.4)]),
     ("analysis", "ANALISIS MULTI-TIMEFRAME", "Trend dari M5 hingga D1", 130, 120,
      [(75, 742, 848, 1000, .6), (108, 1345, 812, 1760, 1.8)]),
-    ("guides", "VIDEO PANDUAN", "Belajar guna app langkah demi langkah", 300, 30,
-     [(35, 650, 886, 1760, .6)]),
 ]
 PW, PH, BZ = 620, 1180, 16  # phone screen size and bezel
 SC = PW / 921
@@ -233,7 +235,7 @@ def phone_shot(img, i, t):
     for (x0, by0, x1, by1, off) in boxes:
         ha = ease(seg(t, s0 + off, s0 + off + .4)) * (1 - pout)
         if ha <= 0: continue
-        pulse = 0.6 + 0.4 * math.sin((t - s0 - off) * 6)
+        pulse = 0.75 + 0.25 * math.sin((t - s0 - off) * 6)
         bx0, bx1 = px + x0 * SC - 6, px + x1 * SC + 6
         bty0, bty1 = py + by0 * SC - ys - 6, py + by1 * SC - ys + 6
         bty0, bty1 = max(py, bty0), min(py + PH, bty1)
@@ -241,6 +243,28 @@ def phone_shot(img, i, t):
     g = lay.filter(ImageFilter.GaussianBlur(10)); img.alpha_composite(g); img.alpha_composite(lay)
 
 def at(k, off=0): return T[k][0] + off
+_h = T["hook2"][0]
+BANNERS_SPEC = [(_h + .3, "Setup baru: GOLD SELL", "M15  \u2022  Entry, SL & TP siap dengan reason"),
+                (_h + .9, "Get ready: BITCOIN", "Harga hampir ke zon, setup mungkin datang"),
+                (_h + 1.5, "Amaran berita USD", "30 minit sebelum berita impak tinggi")]
+DINGS = [b[0] for b in BANNERS_SPEC]
+
+BANNERS = BANNERS_SPEC
+ICON_SMALL = TRAXA.resize((84, 84), Image.LANCZOS)
+def notif_banner(img, y, title, body, t, t0, out):
+    p = seg(t, t0, t0 + .4); a = ease(p) * out
+    if a <= 0: return
+    yy = y - int(120 * (1 - back(p)))
+    lay = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(lay)
+    d.rounded_rectangle([70, yy, W - 70, yy + 180], 38, fill=(38, 36, 34, int(235 * a)), outline=GOLD + (int(120 * a),), width=2)
+    img.alpha_composite(lay.filter(ImageFilter.GaussianBlur(0)))
+    paste_alpha(img, ICON_SMALL, (100, yy + 48), a)
+    d2 = ImageDraw.Draw(lay2 := Image.new("RGBA", (W, H), (0, 0, 0, 0)))
+    d2.text((210, yy + 28), "TRAXA", font=font("SemiBold", 32), fill=MUTED + (int(255 * a),))
+    d2.text((W - 230, yy + 28), "sekarang", font=font("Regular", 30), fill=MUTED + (int(255 * a),))
+    d2.text((210, yy + 70), title, font=font("Bold", 44), fill=WHITE + (int(255 * a),))
+    d2.text((210, yy + 124), body, font=font("Regular", 34), fill=(210, 205, 195, int(255 * a)))
+    img.alpha_composite(lay2)
 
 def frame(n):
     t = n / FPS
@@ -254,13 +278,15 @@ def frame(n):
     # --- Scene 1: hook ---
     if t < S2 + .1:
         out = 1 - seg(t, S2 - .3, S2)
-        words = [("Nak mula", 560, "Bold", 100, WHITE, at("hook1") - .1), ("trading?", 680, "Black", 150, "gold", at("hook1", .4)),
-                 ("Tapi tak tahu", 900, "Bold", 84, WHITE, at("hook2") - .1), ("mula dari mana?", 1000, "Bold", 84, WHITE, at("hook2", .45))]
-        for s, y, w, sz, col, st in words:
+        words = [("Masih teka-teka", 330, "Bold", 92, WHITE, at("hook1") - .1),
+                 ("bila nak ENTRY?", 450, "Black", 118, "gold", at("hook1", .7)),
+                 ("Biar signal yang datang kat kau", 680, "Bold", 60, WHITE, at("hook2") - .1)]
+        for s_, y, w, sz, col, st in words:
             p = seg(t, st, st + .35)
-            ctext(img, y, s, font(w, sz), col, ease(p) * out, scale=0.6 + 0.4 * back(p),
+            ctext(img, y, s_, font(w, sz), col, ease(p) * out, scale=0.6 + 0.4 * back(p),
                   glow=GOLD if col == "gold" else None)
-        ctext(img, 1200, "Tonton sampai habis ↓", font("Medium", 50), MUTED, ease(seg(t, T["hook2"][1] - .2, T["hook2"][1] + .2)) * out)
+        for i, (t0, title, body) in enumerate(BANNERS):
+            notif_banner(img, 820 + i * 215, title, body, t, t0, out)
 
     # --- Scene 2: Traxa reveal ---
     if S2 <= t < S3:
@@ -384,6 +410,9 @@ def music(path):
         for h in hats:
             tt, e = env(int(.035 * sr), 110)
             add(b0 + h, rng.standard_normal(len(tt)) * e, 0.10)
+    for d0 in DINGS:  # notification chime
+        tt, e = env(int(.5 * sr), 9)
+        add(d0, (np.sin(2 * np.pi * 1318.5 * tt) + .6 * np.sin(2 * np.pi * 1975.5 * tt)) * e * np.minimum(1, tt * 400), 0.35)
     for c in CUTS:  # riser whoosh into each scene change
         L = int(.6 * sr); tt = np.arange(L) / sr
         add(c - .6, rng.standard_normal(L) * (tt / .6) ** 2, 0.22)
