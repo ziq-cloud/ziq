@@ -5,8 +5,7 @@ import math, os, random, subprocess, wave
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
-W, H, FPS, DUR = 1080, 1920, 30, 23
-N = FPS * DUR
+W, H, FPS = 1080, 1920, 30
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "out"); FR = os.path.join(OUT, "frames")
 os.makedirs(FR, exist_ok=True)
@@ -139,9 +138,51 @@ def shine(img, box, t, radius):
     band.putalpha(Image.fromarray(np.minimum(np.array(band.getchannel("A")), np.array(m))))
     img.alpha_composite(band, (x0, y0))
 
-# scene boundaries (seconds)
-S1, S2, S3, S4, S5 = 0, 3.2, 7.6, 13.6, 18.8
+# ---------- voiceover (Malay neural TTS) + timeline ----------
+VOICE = os.environ.get("VOICE", "ms-MY-OsmanNeural")
+VDIR = os.path.join(HERE, "voice", VOICE)
+LINES = [
+    ("hook1", "Nak mula trading?"),
+    ("hook2", "Tapi tak tahu mula dari mana?"),
+    ("brand", "Cuba TRAXA Trading App. Trading terus dari telefon anda."),
+    ("why", "Kenapa TRAXA?"),
+    ("f1", "Daftar cepat dan mudah."),
+    ("f2", "Pantau pasaran secara live."),
+    ("f3", "Mesra pengguna baru."),
+    ("f4", "Dan boleh akses di mana-mana."),
+    ("cta1", "Daftar sekarang, guna kod jemputan saya."),
+    ("code", "Z, I, Q, F, X."),
+    ("cta2", "Link pendaftaran ada di bio dan pinned."),
+    ("outro", "Join channel Telegram, i-Fang F X, untuk tips dan update trading."),
+    ("risk", "Ingat, trading ada risiko. Labur dengan bijak."),
+]
+SCENE_START = {"brand", "why", "cta1", "outro"}  # a new scene begins with these lines
+
+def tts(key, text):
+    os.makedirs(VDIR, exist_ok=True)
+    mp3 = os.path.join(VDIR, key + ".mp3")
+    if not os.path.exists(mp3):  # needs network access to speech.platform.bing.com
+        cmd = ["edge-tts", "--voice", VOICE, "--rate=+8%", "--text", text, "--write-media", mp3]
+        if os.environ.get("HTTPS_PROXY"): cmd[1:1] = ["--proxy", os.environ["HTTPS_PROXY"]]
+        subprocess.run(cmd, check=True)
+    raw = subprocess.run(["ffmpeg", "-loglevel", "error", "-i", mp3, "-f", "s16le", "-ac", "1", "-ar", "44100", "-"],
+                         capture_output=True, check=True).stdout
+    a = np.frombuffer(raw, np.int16).astype(np.float32) / 32768
+    nz = np.where(np.abs(a) > 0.01)[0]  # trim silence
+    return a[max(0, nz[0] - 800):nz[-1] + 2000] if len(nz) else a
+
+CLIPS, T = {}, {}
+cur = 0.2
+for key, text in LINES:
+    if key in SCENE_START: cur += 0.35
+    a = tts(key, text); CLIPS[key] = a; T[key] = (cur, cur + len(a) / 44100)
+    cur = T[key][1] + 0.15
+DUR = cur + 1.2
+N = int(FPS * DUR)
+S1 = 0
+S2, S3, S4, S5 = (T[k][0] - 0.25 for k in ("brand", "why", "cta1", "outro"))
 CUTS = [S2, S3, S4, S5]
+def at(k, off=0): return T[k][0] + off
 
 def frame(n):
     t = n / FPS
@@ -155,13 +196,13 @@ def frame(n):
     # --- Scene 1: hook ---
     if t < S2 + .1:
         out = 1 - seg(t, S2 - .3, S2)
-        words = [("Nak mula", 560, "Bold", 100, WHITE, 0.0), ("trading?", 680, "Black", 150, "gold", .35),
-                 ("Tapi tak tahu", 900, "Bold", 84, WHITE, 1.0), ("mula dari mana?", 1000, "Bold", 84, WHITE, 1.3)]
+        words = [("Nak mula", 560, "Bold", 100, WHITE, at("hook1") - .1), ("trading?", 680, "Black", 150, "gold", at("hook1", .4)),
+                 ("Tapi tak tahu", 900, "Bold", 84, WHITE, at("hook2") - .1), ("mula dari mana?", 1000, "Bold", 84, WHITE, at("hook2", .45))]
         for s, y, w, sz, col, st in words:
             p = seg(t, st, st + .35)
             ctext(img, y, s, font(w, sz), col, ease(p) * out, scale=0.6 + 0.4 * back(p),
                   glow=GOLD if col == "gold" else None)
-        ctext(img, 1200, "Tonton sampai habis ↓", font("Medium", 50), MUTED, ease(seg(t, 1.9, 2.3)) * out)
+        ctext(img, 1200, "Tonton sampai habis ↓", font("Medium", 50), MUTED, ease(seg(t, T["hook2"][1] - .2, T["hook2"][1] + .2)) * out)
 
     # --- Scene 2: Traxa reveal ---
     if S2 <= t < S3:
@@ -170,7 +211,7 @@ def frame(n):
         logo(img, TRAXA, W / 2, 720, size, a, glow=GOLD)
         ctext(img, 1000, "TRAXA", font("Black", 180), "gold", win(t, S2 + .5, S3, .5, .4), glow=GOLD)
         ctext(img, 1210, "T R A D I N G   A P P", font("SemiBold", 52), WHITE, win(t, S2 + .8, S3, .5, .4))
-        ctext(img, 1320, "Trading terus dari telefon anda", font("Medium", 50), MUTED, win(t, S2 + 1.3, S3, .5, .4))
+        ctext(img, 1320, "Trading terus dari telefon anda", font("Medium", 50), MUTED, win(t, at("brand", 1.4), S3, .5, .4))
 
     # --- Scene 3: features ---
     if S3 <= t < S4:
@@ -181,7 +222,7 @@ def frame(n):
         accents = [GOLD, RED, BLUE, GOLD]
         lay = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(lay)
         for i, txt in enumerate(feats):
-            st = S3 + .7 + i * .8; a = ease(seg(t, st, st + .45)) * out
+            st0 = at(f"f{i+1}") - .15; a = ease(seg(t, st0, st0 + .4)) * out
             if a <= 0: continue
             x0 = 80 + int(160 * (1 - a)); y0 = 760 + i * 210
             d.rounded_rectangle([x0, y0, x0 + 920, y0 + 165], 34, fill=(255, 255, 255, int(18 * a)),
@@ -200,7 +241,7 @@ def frame(n):
         logo(img, TRAXA, W / 2, 400, 170 * ease(seg(t, S4, S4 + .4)), out)
         ctext(img, 540, "Daftar sekarang", font("Black", 100), WHITE, ease(seg(t, S4, S4 + .4)) * out)
         ctext(img, 670, "guna kod jemputan saya", font("Medium", 56), MUTED, ease(seg(t, S4 + .2, S4 + .6)) * out)
-        p = seg(t, S4 + .5, S4 + 1.0); a2 = ease(p) * out
+        p = seg(t, at("code") - .35, at("code") + .15); a2 = ease(p) * out
         if a2 > 0:
             pulse = back(p) * (1 + 0.025 * math.sin((t - S4) * 7))
             bw, bh = int(780 * pulse), int(270 * pulse); cx, cy = W // 2, 930
@@ -212,29 +253,29 @@ def frame(n):
             img.paste(GOLD_GRAD.resize((bw, bh)), (box[0], box[1]), m)
             ti = text_img(CODE, font("Black", int(180 * pulse)), BLACK)
             paste_alpha(img, ti, (cx - ti.width / 2, cy - ti.height / 2), a2)
-            shine(img, box, ((t - S4 - 1.0) % 1.6) / 1.0, 54)
-        a3 = ease(seg(t, S4 + 1.3, S4 + 1.8)) * out
+            shine(img, box, ((t - at("code")) % 1.6) / 1.0, 54)
+        a3 = ease(seg(t, at("cta2") - .2, at("cta2") + .3)) * out
         ctext(img, 1140, "Link pendaftaran:", font("Medium", 48), MUTED, a3)
         if a3 > 0:
             lay = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(lay)
             d.rounded_rectangle([70, 1210, W - 70, 1330], 30, fill=(255, 255, 255, int(16 * a3)), outline=GOLD + (int(255 * a3),), width=3)
             img.alpha_composite(lay)
         ctext(img, 1242, LINK, font("Bold", 48), GOLD_HI, a3)
-        ctext(img, 1410, "Link ada di bio / pinned ↑", font("SemiBold", 52), WHITE, ease(seg(t, S4 + 2.3, S4 + 2.8)) * out)
+        ctext(img, 1410, "Link ada di bio / pinned ↑", font("SemiBold", 52), WHITE, ease(seg(t, at("cta2", .9), at("cta2", 1.4))) * out)
 
     # --- Scene 5: iFANG FX outro ---
     if t >= S5:
         p = seg(t, S5, S5 + .7)
         logo(img, IFANG, W / 2, 720, 760 * back(p), ease(p), glow=GOLD)
-        a = ease(seg(t, S5 + .6, S5 + 1.1))
+        a = ease(seg(t, at("outro") - .1, at("outro", .4)))
         ctext(img, 1080, "Join channel Telegram", font("SemiBold", 60), WHITE, a)
         if a > 0:
             lay = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(lay)
             d.rounded_rectangle([190, 1180, W - 190, 1320], 70, fill=TG + (int(255 * a),))
             img.alpha_composite(lay)
         ctext(img, 1210, "iFANG FX", font("Black", 76), WHITE, a)
-        ctext(img, 1400, "Follow untuk tips & update trading", font("Medium", 48), MUTED, ease(seg(t, S5 + 1.2, S5 + 1.7)))
-        ctext(img, 1480, "Kod jemputan: ZIQFX", font("Bold", 56), "gold", ease(seg(t, S5 + 1.6, S5 + 2.1)))
+        ctext(img, 1400, "Follow untuk tips & update trading", font("Medium", 48), MUTED, ease(seg(t, at("outro", 1.6), at("outro", 2.1))))
+        ctext(img, 1480, "Kod jemputan: ZIQFX", font("Bold", 56), "gold", ease(seg(t, at("risk") - .2, at("risk", .3))))
 
     # --- persistent overlays ---
     ov = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(ov)
@@ -274,7 +315,14 @@ def music(path):
         L = int(.6 * sr); tt = np.arange(L) / sr
         add(int((c - .6) * sr), rng.standard_normal(L) * (tt / .6) ** 2 * .25)
     fade = np.minimum(1, np.minimum(t / .3, (DUR - t) / 1.2)); out *= fade
-    out = np.int16(out / np.abs(out).max() * 0.85 * 32767)
+    out = out / np.abs(out).max() * 0.22  # music bed under the voice
+    vo = np.zeros_like(out)
+    for k, (a0, _) in T.items():
+        a = CLIPS[k]; i = int(a0 * sr); vo[i:i + len(a)] += a[:len(vo) - i]
+    vo = vo / (np.abs(vo).max() + 1e-9) * 0.9
+    duck = np.convolve((np.abs(vo) > 0.02).astype(np.float32), np.ones(4410) / 4410, "same")
+    mix = out * (1 - 0.45 * np.clip(duck * 3, 0, 1)) + vo
+    out = np.int16(np.clip(mix / max(1.0, np.abs(mix).max()), -1, 1) * 0.95 * 32767)
     with wave.open(path, "wb") as w:
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr); w.writeframes(out.tobytes())
 
@@ -288,5 +336,5 @@ if __name__ == "__main__":
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(FPS), "-i", os.path.join(FR, "%05d.jpg"),
                     "-i", wav, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "19", "-preset", "medium",
                     "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", mp4], check=True)
-    Image.open(os.path.join(FR, f"{int((S4 + 2.6) * FPS):05d}.jpg")).save(os.path.join(OUT, "cover.jpg"), quality=92)
+    Image.open(os.path.join(FR, f"{int((at('cta2', 1.6)) * FPS):05d}.jpg")).save(os.path.join(OUT, "cover.jpg"), quality=92)
     print("done", mp4)
