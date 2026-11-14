@@ -102,16 +102,17 @@ def text_img(s, f, fill, stroke=0, stroke_fill=(0, 0, 0)):
         d.text((2 - bb[0], 2 - bb[1]), s, font=f, fill=fill, stroke_width=stroke, stroke_fill=stroke_fill)
     return im
 
-def ctext(img, y, s, f, fill, a=1.0, dy=0, scale=1.0, glow=None):
+def ctext(img, y, s, f, fill, a=1.0, dy=0, scale=1.0, glow=None, dx=0):
     if a <= 0: return
     im = text_img(s, f, fill)
     if scale != 1.0:
         im = im.resize((max(1, int(im.width * scale)), max(1, int(im.height * scale))), Image.LANCZOS)
-    x = (W - im.width) / 2; yy = y + dy - (im.height - im.height / scale) / 2 if scale != 1 else y + dy
+    x = (W - im.width) / 2 + dx; yy = y + dy - (im.height - im.height / scale) / 2 if scale != 1 else y + dy
     if glow:
-        g = Image.new("RGBA", im.size, glow + (0,)); g.putalpha(im.getchannel("A"))
-        g = g.resize((im.width + 60, im.height + 60)).filter(ImageFilter.GaussianBlur(18))
-        paste_alpha(img, g, (x - 30, yy - 30), a * .8)
+        g = Image.new("RGBA", (im.width + 120, im.height + 120), glow + (0,))
+        m = Image.new("L", g.size, 0); m.paste(im.getchannel("A"), (60, 60))
+        g.putalpha(m); g = g.filter(ImageFilter.GaussianBlur(18))
+        paste_alpha(img, g, (x - 60, yy - 60), a * .8)
     paste_alpha(img, im, (x, yy), a)
 
 def logo(img, src, cx, cy, size, a, glow=None, rot=0):
@@ -144,23 +145,23 @@ VDIR = os.path.join(HERE, "voice", VOICE)
 LINES = [
     ("hook1", "Nak mula trading?"),
     ("hook2", "Tapi tak tahu mula dari mana?"),
-    ("brand", "Cuba TRAXA Trading App. Trading terus dari telefon anda."),
-    ("why", "Kenapa TRAXA?"),
-    ("f1", "Daftar cepat dan mudah."),
-    ("f2", "Pantau pasaran secara live."),
-    ("f3", "Mesra pengguna baru."),
-    ("f4", "Dan boleh akses di mana-mana."),
+    ("brand", "Cuba TRAXA Trading App. Signal trading terus di telefon anda."),
+    ("p1", "Ada tiga pair utama: Gold, Bitcoin dan Oil, dengan harga live."),
+    ("p2", "Setiap setup ada entry, stop loss dan take profit, siap dengan reason kenapa setup itu dihantar."),
+    ("p3", "Analisis trend lengkap, dari M5 sampai D1."),
+    ("p4", "Dan ada video panduan untuk yang baru mula."),
     ("cta1", "Daftar sekarang, guna kod jemputan saya."),
     ("code", "Z, I, Q, F, X."),
     ("cta2", "Link pendaftaran ada di bio dan pinned."),
     ("outro", "Join channel Telegram, i-Fang F X, untuk tips dan update trading."),
     ("risk", "Ingat, trading ada risiko. Labur dengan bijak."),
 ]
-SCENE_START = {"brand", "why", "cta1", "outro"}  # a new scene begins with these lines
+SCENE_START = {"brand", "p1", "p2", "p3", "p4", "cta1", "outro"}  # a new scene begins with these lines
 
 def tts(key, text):
     os.makedirs(VDIR, exist_ok=True)
-    mp3 = os.path.join(VDIR, key + ".mp3")
+    import hashlib
+    mp3 = os.path.join(VDIR, f"{key}_{hashlib.md5(text.encode()).hexdigest()[:6]}.mp3")
     if not os.path.exists(mp3):  # needs network access to speech.platform.bing.com
         cmd = ["edge-tts", "--voice", VOICE, "--rate=+8%", "--text", text, "--write-media", mp3]
         if os.environ.get("HTTPS_PROXY"): cmd[1:1] = ["--proxy", os.environ["HTTPS_PROXY"]]
@@ -180,8 +181,65 @@ for key, text in LINES:
 DUR = cur + 1.2
 N = int(FPS * DUR)
 S1 = 0
-S2, S3, S4, S5 = (T[k][0] - 0.25 for k in ("brand", "why", "cta1", "outro"))
-CUTS = [S2, S3, S4, S5]
+S2, S3, S4, S5 = (T[k][0] - 0.25 for k in ("brand", "p1", "cta1", "outro"))
+SHOT_T = [T[f"p{i}"][0] - 0.25 for i in range(1, 5)] + [S4]
+CUTS = [S2, S4, S5]
+
+# ---------- app screenshots shown inside a phone mockup ----------
+# boxes are in 921-px-wide screenshot coordinates: (x0, y0, x1, y1, appear-after-seconds)
+SHOTS = [
+    ("home", "3 PAIR UTAMA", "Gold  \u2022  Bitcoin  \u2022  Oil  \u2014  harga live", 130, 60,
+     [(35, 325, 886, 690, .6)]),
+    ("chart", "REASON SETIAP ENTRY", "Entry, SL & TP siap dengan sebab", 130, 0,
+     [(72, 630, 848, 706, .8), (372, 1040, 700, 1625, 3.0)]),
+    ("analysis", "ANALISIS MULTI-TIMEFRAME", "Trend dari M5 hingga D1", 130, 120,
+     [(75, 742, 848, 1000, .6), (108, 1345, 812, 1760, 1.8)]),
+    ("guides", "VIDEO PANDUAN", "Belajar guna app langkah demi langkah", 300, 30,
+     [(35, 650, 886, 1760, .6)]),
+]
+PW, PH, BZ = 620, 1180, 16  # phone screen size and bezel
+SC = PW / 921
+SCREENS = {}
+for name, *_ in SHOTS:
+    im = Image.open(os.path.join(HERE, f"assets/screens/{name}.png")).convert("RGB")
+    SCREENS[name] = im.resize((PW, int(im.height * PW / im.width)), Image.LANCZOS)
+SCREEN_MASK = Image.new("L", (PW, PH), 0); ImageDraw.Draw(SCREEN_MASK).rounded_rectangle([0, 0, PW - 1, PH - 1], 58, fill=255)
+PHONE = Image.new("RGBA", (PW + 2 * BZ, PH + 2 * BZ), (0, 0, 0, 0))
+ImageDraw.Draw(PHONE).rounded_rectangle([0, 0, PW + 2 * BZ - 1, PH + 2 * BZ - 1], 72, fill=(20, 18, 16, 255), outline=GOLD + (200,), width=3)
+PHONE_GLOW = Image.new("RGBA", (PHONE.width + 200, PHONE.height + 200), (0, 0, 0, 0))
+ImageDraw.Draw(PHONE_GLOW).rounded_rectangle([100, 100, 100 + PHONE.width, 100 + PHONE.height], 72, fill=GOLD + (110,))
+PHONE_GLOW = PHONE_GLOW.filter(ImageFilter.GaussianBlur(45))
+
+def phone_shot(img, i, t):
+    name, title, sub, y0, pan, boxes = SHOTS[i]
+    s0, s1 = SHOT_T[i], SHOT_T[i + 1]
+    pin, pout = ease(seg(t, s0, s0 + .5)), seg(t, s1 - .35, s1)
+    a = pin * (1 - pout)
+    dx = int(W * (1 - pin)) - int(W * ease(pout))
+    # titles
+    ctext(img, 250, title, font("Black", 64), "gold", a, dx=dx, glow=GOLD)
+    ctext(img, 345, sub, font("Medium", 44), WHITE, ease(seg(t, s0 + .2, s0 + .6)) * (1 - pout), dx=dx)
+    # phone
+    px = (W - PW) // 2 + dx; py = 450
+    paste_alpha(img, PHONE_GLOW, (px - BZ - 100, py - BZ - 100), a)
+    paste_alpha(img, PHONE, (px - BZ, py - BZ), a)
+    src = SCREENS[name]
+    ys = int(y0 * SC + pan * SC * ease(seg(t, s0 + .5, s1 - .4)))
+    ys = min(ys, src.height - PH)
+    scr = src.crop((0, ys, PW, ys + PH)).convert("RGBA"); scr.putalpha(SCREEN_MASK.point(lambda v: int(v * a)))
+    img.alpha_composite(scr, (max(-PW, min(W, px)), py)) if -PW < px < W else None
+    # pulsing highlight boxes
+    lay = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(lay)
+    for (x0, by0, x1, by1, off) in boxes:
+        ha = ease(seg(t, s0 + off, s0 + off + .4)) * (1 - pout)
+        if ha <= 0: continue
+        pulse = 0.6 + 0.4 * math.sin((t - s0 - off) * 6)
+        bx0, bx1 = px + x0 * SC - 6, px + x1 * SC + 6
+        bty0, bty1 = py + by0 * SC - ys - 6, py + by1 * SC - ys + 6
+        bty0, bty1 = max(py, bty0), min(py + PH, bty1)
+        d.rounded_rectangle([bx0, bty0, bx1, bty1], 22, outline=GOLD_HI + (int(255 * ha * pulse),), width=6)
+    g = lay.filter(ImageFilter.GaussianBlur(10)); img.alpha_composite(g); img.alpha_composite(lay)
+
 def at(k, off=0): return T[k][0] + off
 
 def frame(n):
@@ -211,29 +269,12 @@ def frame(n):
         logo(img, TRAXA, W / 2, 720, size, a, glow=GOLD)
         ctext(img, 1000, "TRAXA", font("Black", 180), "gold", win(t, S2 + .5, S3, .5, .4), glow=GOLD)
         ctext(img, 1210, "T R A D I N G   A P P", font("SemiBold", 52), WHITE, win(t, S2 + .8, S3, .5, .4))
-        ctext(img, 1320, "Trading terus dari telefon anda", font("Medium", 50), MUTED, win(t, at("brand", 1.4), S3, .5, .4))
+        ctext(img, 1320, "Signal trading terus di telefon anda", font("Medium", 50), MUTED, win(t, at("brand", 1.4), S3, .5, .4))
 
-    # --- Scene 3: features ---
+    # --- Scene 3: app tour ---
     if S3 <= t < S4:
-        out = 1 - seg(t, S4 - .4, S4)
-        ctext(img, 430, "Kenapa", font("Bold", 80), WHITE, ease(seg(t, S3, S3 + .4)) * out)
-        ctext(img, 530, "TRAXA?", font("Black", 130), "gold", ease(seg(t, S3 + .2, S3 + .6)) * out, glow=GOLD)
-        feats = ["Daftar cepat & mudah", "Pantau pasaran secara live", "Mesra pengguna baru", "Akses di mana-mana"]
-        accents = [GOLD, RED, BLUE, GOLD]
-        lay = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(lay)
-        for i, txt in enumerate(feats):
-            st0 = at(f"f{i+1}") - .15; a = ease(seg(t, st0, st0 + .4)) * out
-            if a <= 0: continue
-            x0 = 80 + int(160 * (1 - a)); y0 = 760 + i * 210
-            d.rounded_rectangle([x0, y0, x0 + 920, y0 + 165], 34, fill=(255, 255, 255, int(18 * a)),
-                                outline=GOLD + (int(170 * a),), width=3)
-            d.rounded_rectangle([x0, y0 + 30, x0 + 10, y0 + 135], 5, fill=accents[i] + (int(255 * a),))
-            # check badge
-            cx, cy = x0 + 95, y0 + 82
-            d.ellipse([cx - 46, cy - 46, cx + 46, cy + 46], fill=GOLD + (int(255 * a),))
-            d.line([(cx - 20, cy + 2), (cx - 5, cy + 18), (cx + 22, cy - 14)], fill=BLACK + (int(255 * a),), width=10, joint="curve")
-            d.text((x0 + 170, y0 + 50), txt, font=font("SemiBold", 54), fill=(255, 255, 255, int(255 * a)))
-        img.alpha_composite(lay)
+        for i in range(len(SHOTS)):
+            if SHOT_T[i] <= t < SHOT_T[i + 1]: phone_shot(img, i, t)
 
     # --- Scene 4: CTA with code ---
     if S4 <= t < S5:
