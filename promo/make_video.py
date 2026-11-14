@@ -1,11 +1,11 @@
 """Generate a vertical (1080x1920) promo video for TikTok / Telegram.
-Usage: python3 make_video.py  -> writes out/traxa_promo.mp4
+Usage: python3 make_video.py  -> writes out/traxa_promo.mp4 and out/cover.jpg
 """
 import math, os, random, subprocess, wave
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
-W, H, FPS, DUR = 1080, 1920, 30, 20
+W, H, FPS, DUR = 1080, 1920, 30, 23
 N = FPS * DUR
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "out"); FR = os.path.join(OUT, "frames")
@@ -13,158 +13,280 @@ os.makedirs(FR, exist_ok=True)
 
 CODE = "ZIQFX"
 LINK = "traxatradingapp.com/?invite=ZIQFX"
-F = "/usr/share/fonts/opentype/inter/"
-def font(w, s): return ImageFont.truetype(F + f"Inter-{w}.otf", s)
-BG1, BG2 = (6, 10, 24), (12, 26, 54)
-GREEN, RED, GOLD, WHITE, MUTED = (0, 214, 143), (255, 77, 106), (255, 196, 61), (255, 255, 255), (150, 165, 195)
+FD = "/usr/share/fonts/opentype/inter/"
+_fc = {}
+def font(w, s):
+    k = (w, s)
+    if k not in _fc: _fc[k] = ImageFont.truetype(FD + f"Inter-{w}.otf", s)
+    return _fc[k]
+
+# Traxa palette: black, gold, red, blue
+BLACK = (8, 7, 6)
+GOLD, GOLD_HI, GOLD_LO = (226, 178, 92), (255, 226, 150), (160, 112, 44)
+RED, BLUE, WHITE, MUTED = (224, 84, 88), (72, 140, 232), (255, 255, 255), (170, 160, 145)
+TG = (42, 171, 238)
+
+TRAXA = Image.open(os.path.join(HERE, "assets/traxa_icon.png")).convert("RGBA")
+IFANG = Image.open(os.path.join(HERE, "assets/ifangfx_logo.png")).convert("RGBA")
+IFANG = IFANG.crop(IFANG.getbbox())
 
 def ease(t): t = max(0, min(1, t)); return 1 - (1 - t) ** 3
+def back(t):  # overshoot ease
+    t = max(0, min(1, t)); c = 1.9; return 1 + (c + 1) * (t - 1) ** 3 + c * (t - 1) ** 2
 def seg(t, a, b): return max(0.0, min(1.0, (t - a) / (b - a)))
+def win(t, a, b, fi=.5, fo=.4): return ease(seg(t, a, a + fi)) * (1 - seg(t, b - fo, b))
 
-# background gradient
-grad = np.zeros((H, W, 3), np.uint8)
-for i, c in enumerate(zip(BG1, BG2)):
-    grad[..., i] = np.linspace(c[0], c[1], H)[:, None].astype(np.uint8)
-BASE = Image.fromarray(grad)
+# ---------- static background: black with warm radial glow + vignette ----------
+yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+r = np.sqrt(((xx - W / 2) / W) ** 2 + ((yy - H * 0.42) / H) ** 2)
+glow = np.clip(1 - r * 1.8, 0, 1) ** 2
+bg = np.zeros((H, W, 3), np.float32)
+for i in range(3): bg[..., i] = BLACK[i] + glow * (np.array([70, 48, 18])[i])
+BASE = Image.fromarray(bg.clip(0, 255).astype(np.uint8))
 
-# random-walk candles
-random.seed(7)
+# gold vertical gradient used to fill text/shapes
+gy = np.linspace(0, 1, 400)[:, None]
+gcol = np.concatenate([(np.array(GOLD_HI) * (1 - gy) + np.array(GOLD_LO) * gy)[..., None, :]] * 4, axis=1)
+GOLD_GRAD = Image.fromarray(gcol.astype(np.uint8)).resize((2000, 400))
+
+# ---------- candles (random walk, trending up) ----------
+random.seed(11)
 candles, p = [], 100.0
-for _ in range(60):
-    o = p; c = o + random.gauss(0.35, 2.2); hi = max(o, c) + abs(random.gauss(0, 1.2)); lo = min(o, c) - abs(random.gauss(0, 1.2))
+for _ in range(80):
+    o = p; c = o + random.gauss(0.45, 2.0); hi = max(o, c) + abs(random.gauss(0, 1.1)); lo = min(o, c) - abs(random.gauss(0, 1.1))
     candles.append((o, hi, lo, c)); p = c
 
-def draw_chart(d, t, alpha):
-    visible = min(len(candles), int(8 + t * 4))
-    cs = candles[max(0, visible - 22):visible]
+def chart_layer(t, strength):
+    lay = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(lay)
+    vis = min(len(candles), int(10 + t * 3.2))
+    cs = candles[max(0, vis - 24):vis]
     lo = min(x[2] for x in cs); hi = max(x[1] for x in cs)
-    top, bot = 380, 1450; cw = W / 22
+    top, bot = 420, 1500; cw = W / 24
     def y(v): return bot - (v - lo) / (hi - lo + 1e-6) * (bot - top)
+    a = int(255 * strength)
+    pts = []
     for i, (o, h, l, c) in enumerate(cs):
-        col = GREEN if c >= o else RED
-        col = tuple(int(v * alpha) + int(BG1[k] * (1 - alpha)) for k, v in enumerate(col))
+        col = (60, 200, 140) if c >= o else RED
         x = i * cw + cw / 2
-        d.line([(x, y(h)), (x, y(l))], fill=col, width=3)
-        d.rectangle([x - cw * 0.32, min(y(o), y(c)), x + cw * 0.32, max(y(o), y(c)) + 2], fill=col)
+        d.line([(x, y(h)), (x, y(l))], fill=col + (a,), width=3)
+        d.rectangle([x - cw * .3, min(y(o), y(c)), x + cw * .3, max(y(o), y(c)) + 2], fill=col + (a,))
+        pts.append((x, y(c)))
+    if len(pts) > 1: d.line(pts, fill=GOLD + (int(a * .8),), width=4)
+    return lay
 
-def ctext(d, y, s, f, fill, a=1.0, dy=0):
-    fill = tuple(int(fill[k] * a + 0 * (1 - a)) for k in range(3)) + (int(255 * a),)
-    w = d.textlength(s, font=f); d.text(((W - w) / 2, y + dy), s, font=f, fill=fill)
+# ---------- particles ----------
+random.seed(3)
+parts = [(random.uniform(0, W), random.uniform(0, H), random.uniform(15, 60), random.uniform(1.5, 4.5), random.uniform(0, 6.28)) for _ in range(70)]
+def particles(d, t):
+    for x, y0, sp, sz, ph in parts:
+        y = (y0 - sp * t) % H
+        a = int(110 * (0.5 + 0.5 * math.sin(t * 2 + ph)))
+        d.ellipse([x - sz, y - sz, x + sz, y + sz], fill=GOLD_HI + (a,))
 
-def pill(d, box, fill, r=40, outline=None, width=0):
-    d.rounded_rectangle(box, r, fill=fill, outline=outline, width=width)
+# ---------- drawing helpers ----------
+def paste_alpha(img, im, xy, a):
+    if a <= 0: return
+    if a < 1:
+        im = im.copy(); im.putalpha(im.getchannel("A").point(lambda v: int(v * a)))
+    img.alpha_composite(im, (int(xy[0]), int(xy[1])))
+
+def text_img(s, f, fill, stroke=0, stroke_fill=(0, 0, 0)):
+    bb = f.getbbox(s, stroke_width=stroke)
+    im = Image.new("RGBA", (bb[2] - bb[0] + 4, bb[3] - bb[1] + 4), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    if fill == "gold":
+        mask = Image.new("L", im.size, 0)
+        ImageDraw.Draw(mask).text((2 - bb[0], 2 - bb[1]), s, font=f, fill=255)
+        g = GOLD_GRAD.resize(im.size)
+        im.paste(g, (0, 0), mask)
+    else:
+        d.text((2 - bb[0], 2 - bb[1]), s, font=f, fill=fill, stroke_width=stroke, stroke_fill=stroke_fill)
+    return im
+
+def ctext(img, y, s, f, fill, a=1.0, dy=0, scale=1.0, glow=None):
+    if a <= 0: return
+    im = text_img(s, f, fill)
+    if scale != 1.0:
+        im = im.resize((max(1, int(im.width * scale)), max(1, int(im.height * scale))), Image.LANCZOS)
+    x = (W - im.width) / 2; yy = y + dy - (im.height - im.height / scale) / 2 if scale != 1 else y + dy
+    if glow:
+        g = Image.new("RGBA", im.size, glow + (0,)); g.putalpha(im.getchannel("A"))
+        g = g.resize((im.width + 60, im.height + 60)).filter(ImageFilter.GaussianBlur(18))
+        paste_alpha(img, g, (x - 30, yy - 30), a * .8)
+    paste_alpha(img, im, (x, yy), a)
+
+def logo(img, src, cx, cy, size, a, glow=None, rot=0):
+    if a <= 0 or size < 2: return
+    s = size / max(src.size)
+    im = src.resize((max(1, int(src.width * s)), max(1, int(src.height * s))), Image.LANCZOS)
+    if rot: im = im.rotate(rot, Image.BICUBIC, expand=True)
+    if glow:
+        g = Image.new("RGBA", (im.width + 160, im.height + 160), (0, 0, 0, 0))
+        sh = Image.new("RGBA", im.size, glow + (255,)); sh.putalpha(im.getchannel("A"))
+        g.alpha_composite(sh, (80, 80)); g = g.filter(ImageFilter.GaussianBlur(40))
+        paste_alpha(img, g, (cx - g.width / 2, cy - g.height / 2), a)
+    paste_alpha(img, im, (cx - im.width / 2, cy - im.height / 2), a)
+
+def shine(img, box, t, radius):
+    """diagonal light sweep across a rounded box, t in 0..1"""
+    if not 0 < t < 1: return
+    x0, y0, x1, y1 = box; w, h = x1 - x0, y1 - y0
+    band = Image.new("RGBA", (w, h), (0, 0, 0, 0)); bd = ImageDraw.Draw(band)
+    cx = -200 + t * (w + 400)
+    bd.polygon([(cx, 0), (cx + 90, 0), (cx - 30, h), (cx - 120, h)], fill=(255, 255, 255, 120))
+    band = band.filter(ImageFilter.GaussianBlur(8))
+    m = Image.new("L", (w, h), 0); ImageDraw.Draw(m).rounded_rectangle([0, 0, w - 1, h - 1], radius, fill=255)
+    band.putalpha(Image.fromarray(np.minimum(np.array(band.getchannel("A")), np.array(m))))
+    img.alpha_composite(band, (x0, y0))
+
+# scene boundaries (seconds)
+S1, S2, S3, S4, S5 = 0, 3.2, 7.6, 13.6, 18.8
+CUTS = [S2, S3, S4, S5]
 
 def frame(n):
     t = n / FPS
-    img = BASE.copy()
-    # chart layer (dimmed)
-    chart = Image.new("RGB", (W, H), BG1); cd = ImageDraw.Draw(chart)
-    draw_chart(cd, t, 1.0)
-    dim = 0.55 if t < 3 else 0.18
-    img = Image.blend(img, Image.composite(chart, img, chart.convert("L").point(lambda v: 255 if v > 30 else 0)), dim)
-    ov = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(ov)
+    img = BASE.copy().convert("RGBA")
+    # chart, stronger during hook
+    strength = 0.55 if t < S2 else 0.16
+    if t >= S2 - .3 and t < S2: strength = 0.55 - 0.39 * seg(t, S2 - .3, S2)
+    img.alpha_composite(chart_layer(t, strength))
+    pl = Image.new("RGBA", (W, H), (0, 0, 0, 0)); particles(ImageDraw.Draw(pl), t); img.alpha_composite(pl)
 
-    # Scene 1: hook 0-3.2s
-    if t < 3.4:
-        a = ease(seg(t, 0, .5)) * (1 - seg(t, 3.0, 3.4))
-        ctext(d, 640, "Nak mula trading", font("Bold", 92), WHITE, a, 40 * (1 - ease(seg(t, 0, .5))))
-        a2 = ease(seg(t, .5, 1.0)) * (1 - seg(t, 3.0, 3.4))
-        ctext(d, 760, "tapi tak tahu", font("Bold", 92), WHITE, a2)
-        a3 = ease(seg(t, 1.0, 1.5)) * (1 - seg(t, 3.0, 3.4))
-        ctext(d, 880, "mula dari mana?", font("ExtraBold", 104), GOLD, a3)
-        a4 = ease(seg(t, 1.8, 2.3)) * (1 - seg(t, 3.0, 3.4))
-        ctext(d, 1060, "Tonton sampai habis ↓", font("Medium", 52), MUTED, a4)
+    # --- Scene 1: hook ---
+    if t < S2 + .1:
+        out = 1 - seg(t, S2 - .3, S2)
+        words = [("Nak mula", 560, "Bold", 100, WHITE, 0.0), ("trading?", 680, "Black", 150, "gold", .35),
+                 ("Tapi tak tahu", 900, "Bold", 84, WHITE, 1.0), ("mula dari mana?", 1000, "Bold", 84, WHITE, 1.3)]
+        for s, y, w, sz, col, st in words:
+            p = seg(t, st, st + .35)
+            ctext(img, y, s, font(w, sz), col, ease(p) * out, scale=0.6 + 0.4 * back(p),
+                  glow=GOLD if col == "gold" else None)
+        ctext(img, 1200, "Tonton sampai habis ↓", font("Medium", 50), MUTED, ease(seg(t, 1.9, 2.3)) * out)
 
-    # Scene 2: brand reveal 3.2-7.5s
-    if 3.2 <= t < 7.8:
-        a = ease(seg(t, 3.2, 3.9)) * (1 - seg(t, 7.3, 7.8))
-        s = 0.8 + 0.2 * ease(seg(t, 3.2, 4.0))
-        r = int(150 * s); cx, cy = W // 2, 700
-        d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(0, 214, 143, int(255 * a)))
-        # up arrow logo
-        d.polygon([(cx, cy - r * .55), (cx + r * .5, cy + r * .05), (cx + r * .18, cy + r * .05),
-                   (cx + r * .18, cy + r * .5), (cx - r * .18, cy + r * .5), (cx - r * .18, cy + r * .05),
-                   (cx - r * .5, cy + r * .05)], fill=(6, 10, 24, int(255 * a)))
-        ctext(d, 900, "TRAXA", font("Black", 170), WHITE, a)
-        ctext(d, 1090, "TRADING APP", font("SemiBold", 64), GREEN, a)
-        a2 = ease(seg(t, 4.4, 5.0)) * (1 - seg(t, 7.3, 7.8))
-        ctext(d, 1220, "Trading terus dari telefon anda", font("Medium", 54), MUTED, a2)
+    # --- Scene 2: Traxa reveal ---
+    if S2 <= t < S3:
+        a = win(t, S2, S3, .4, .4); p = seg(t, S2, S2 + .7)
+        size = 420 * back(p)
+        logo(img, TRAXA, W / 2, 720, size, a, glow=GOLD)
+        ctext(img, 1000, "TRAXA", font("Black", 180), "gold", win(t, S2 + .5, S3, .5, .4), glow=GOLD)
+        ctext(img, 1210, "T R A D I N G   A P P", font("SemiBold", 52), WHITE, win(t, S2 + .8, S3, .5, .4))
+        ctext(img, 1320, "Trading terus dari telefon anda", font("Medium", 50), MUTED, win(t, S2 + 1.3, S3, .5, .4))
 
-    # Scene 3: features 7.5-13.5s
-    if 7.5 <= t < 13.8:
-        out = 1 - seg(t, 13.3, 13.8)
-        ctext(d, 470, "Kenapa TRAXA?", font("ExtraBold", 96), WHITE, ease(seg(t, 7.5, 8.1)) * out)
-        feats = [("1", "Daftar cepat & mudah"), ("2", "Pantau pasaran secara live"),
-                 ("3", "Mesra pengguna baru"), ("4", "Akses di mana-mana")]
-        for i, (num, txt) in enumerate(feats):
-            st = 8.2 + i * 0.9; a = ease(seg(t, st, st + .5)) * out
+    # --- Scene 3: features ---
+    if S3 <= t < S4:
+        out = 1 - seg(t, S4 - .4, S4)
+        ctext(img, 430, "Kenapa", font("Bold", 80), WHITE, ease(seg(t, S3, S3 + .4)) * out)
+        ctext(img, 530, "TRAXA?", font("Black", 130), "gold", ease(seg(t, S3 + .2, S3 + .6)) * out, glow=GOLD)
+        feats = ["Daftar cepat & mudah", "Pantau pasaran secara live", "Mesra pengguna baru", "Akses di mana-mana"]
+        accents = [GOLD, RED, BLUE, GOLD]
+        lay = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(lay)
+        for i, txt in enumerate(feats):
+            st = S3 + .7 + i * .8; a = ease(seg(t, st, st + .45)) * out
             if a <= 0: continue
-            x0 = 90 + int(120 * (1 - a)); y0 = 680 + i * 220
-            pill(d, [x0, y0, x0 + 900, y0 + 170], (255, 255, 255, int(22 * a)), 36, (0, 214, 143, int(200 * a)), 3)
-            d.ellipse([x0 + 35, y0 + 35, x0 + 135, y0 + 135], fill=(0, 214, 143, int(255 * a)))
-            f = font("Black", 60); w = d.textlength(num, font=f)
-            d.text((x0 + 85 - w / 2, y0 + 47), num, font=f, fill=(6, 10, 24, int(255 * a)))
-            d.text((x0 + 170, y0 + 52), txt, font=font("SemiBold", 54), fill=(255, 255, 255, int(255 * a)))
+            x0 = 80 + int(160 * (1 - a)); y0 = 760 + i * 210
+            d.rounded_rectangle([x0, y0, x0 + 920, y0 + 165], 34, fill=(255, 255, 255, int(18 * a)),
+                                outline=GOLD + (int(170 * a),), width=3)
+            d.rounded_rectangle([x0, y0 + 30, x0 + 10, y0 + 135], 5, fill=accents[i] + (int(255 * a),))
+            # check badge
+            cx, cy = x0 + 95, y0 + 82
+            d.ellipse([cx - 46, cy - 46, cx + 46, cy + 46], fill=GOLD + (int(255 * a),))
+            d.line([(cx - 20, cy + 2), (cx - 5, cy + 18), (cx + 22, cy - 14)], fill=BLACK + (int(255 * a),), width=10, joint="curve")
+            d.text((x0 + 170, y0 + 50), txt, font=font("SemiBold", 54), fill=(255, 255, 255, int(255 * a)))
+        img.alpha_composite(lay)
 
-    # Scene 4: CTA 13.5-20s
-    if t >= 13.5:
-        a = ease(seg(t, 13.5, 14.1))
-        ctext(d, 440, "Daftar sekarang", font("ExtraBold", 100), WHITE, a)
-        ctext(d, 570, "guna kod jemputan saya", font("Medium", 58), MUTED, a)
-        a2 = ease(seg(t, 14.2, 14.8)); pulse = 1 + 0.03 * math.sin((t - 14.2) * 6) * a2
-        bw, bh = int(760 * pulse), int(260 * pulse); cx, cy = W // 2, 840
-        pill(d, [cx - bw // 2, cy - bh // 2, cx + bw // 2, cy + bh // 2], (255, 196, 61, int(255 * a2)), 50)
-        f = font("Black", int(170 * pulse)); w = d.textlength(CODE, font=f)
-        bb = d.textbbox((0, 0), CODE, font=f)
-        d.text((cx - w / 2, cy - (bb[3] + bb[1]) / 2), CODE, font=f, fill=(6, 10, 24, int(255 * a2)))
-        a3 = ease(seg(t, 15.2, 15.8))
-        ctext(d, 1060, "Link pendaftaran:", font("Medium", 50), MUTED, a3)
-        pill(d, [70, 1140, W - 70, 1260], (0, 214, 143, int(40 * a3)), 30, (0, 214, 143, int(255 * a3)), 3)
-        ctext(d, 1170, LINK, font("Bold", 50), GREEN, a3)
-        a4 = ease(seg(t, 16.3, 16.9))
-        ctext(d, 1340, "Link ada di bio / pinned ↑", font("SemiBold", 54), WHITE, a4)
+    # --- Scene 4: CTA with code ---
+    if S4 <= t < S5:
+        out = 1 - seg(t, S5 - .4, S5)
+        logo(img, TRAXA, W / 2, 400, 170 * ease(seg(t, S4, S4 + .4)), out)
+        ctext(img, 540, "Daftar sekarang", font("Black", 100), WHITE, ease(seg(t, S4, S4 + .4)) * out)
+        ctext(img, 670, "guna kod jemputan saya", font("Medium", 56), MUTED, ease(seg(t, S4 + .2, S4 + .6)) * out)
+        p = seg(t, S4 + .5, S4 + 1.0); a2 = ease(p) * out
+        if a2 > 0:
+            pulse = back(p) * (1 + 0.025 * math.sin((t - S4) * 7))
+            bw, bh = int(780 * pulse), int(270 * pulse); cx, cy = W // 2, 930
+            box = [cx - bw // 2, cy - bh // 2, cx + bw // 2, cy + bh // 2]
+            # glow
+            g = Image.new("RGBA", (W, H), (0, 0, 0, 0)); ImageDraw.Draw(g).rounded_rectangle(box, 54, fill=GOLD + (int(150 * a2),))
+            img.alpha_composite(g.filter(ImageFilter.GaussianBlur(40)))
+            m = Image.new("L", (bw, bh), 0); ImageDraw.Draw(m).rounded_rectangle([0, 0, bw - 1, bh - 1], 54, fill=int(255 * a2))
+            img.paste(GOLD_GRAD.resize((bw, bh)), (box[0], box[1]), m)
+            ti = text_img(CODE, font("Black", int(180 * pulse)), BLACK)
+            paste_alpha(img, ti, (cx - ti.width / 2, cy - ti.height / 2), a2)
+            shine(img, box, ((t - S4 - 1.0) % 1.6) / 1.0, 54)
+        a3 = ease(seg(t, S4 + 1.3, S4 + 1.8)) * out
+        ctext(img, 1140, "Link pendaftaran:", font("Medium", 48), MUTED, a3)
+        if a3 > 0:
+            lay = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(lay)
+            d.rounded_rectangle([70, 1210, W - 70, 1330], 30, fill=(255, 255, 255, int(16 * a3)), outline=GOLD + (int(255 * a3),), width=3)
+            img.alpha_composite(lay)
+        ctext(img, 1242, LINK, font("Bold", 48), GOLD_HI, a3)
+        ctext(img, 1410, "Link ada di bio / pinned ↑", font("SemiBold", 52), WHITE, ease(seg(t, S4 + 2.3, S4 + 2.8)) * out)
 
-    # Persistent disclaimer
-    ctext(d, 1760, "Trading melibatkan risiko. Hanya labur apa yang", font("Regular", 34), MUTED, 0.9)
-    ctext(d, 1805, "anda sanggup rugi. Bukan nasihat kewangan.", font("Regular", 34), MUTED, 0.9)
-    # progress bar
-    d.rectangle([0, H - 12, int(W * t / DUR), H], fill=(0, 214, 143, 220))
+    # --- Scene 5: iFANG FX outro ---
+    if t >= S5:
+        p = seg(t, S5, S5 + .7)
+        logo(img, IFANG, W / 2, 720, 760 * back(p), ease(p), glow=GOLD)
+        a = ease(seg(t, S5 + .6, S5 + 1.1))
+        ctext(img, 1080, "Join channel Telegram", font("SemiBold", 60), WHITE, a)
+        if a > 0:
+            lay = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(lay)
+            d.rounded_rectangle([190, 1180, W - 190, 1320], 70, fill=TG + (int(255 * a),))
+            img.alpha_composite(lay)
+        ctext(img, 1210, "iFANG FX", font("Black", 76), WHITE, a)
+        ctext(img, 1400, "Follow untuk tips & update trading", font("Medium", 48), MUTED, ease(seg(t, S5 + 1.2, S5 + 1.7)))
+        ctext(img, 1480, "Kod jemputan: ZIQFX", font("Bold", 56), "gold", ease(seg(t, S5 + 1.6, S5 + 2.1)))
 
-    img = Image.alpha_composite(img.convert("RGBA"), ov).convert("RGB")
-    img.save(os.path.join(FR, f"{n:05d}.jpg"), quality=92)
+    # --- persistent overlays ---
+    ov = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(ov)
+    if t < S5:  # channel watermark
+        logo(img, IFANG, 140, 130, 190, 0.92)
+    for i, s in enumerate(["Trading melibatkan risiko. Hanya labur apa yang", "anda sanggup rugi. Bukan nasihat kewangan."]):
+        f = font("Regular", 32); w = d.textlength(s, font=f)
+        d.text(((W - w) / 2, 1770 + i * 44), s, font=f, fill=MUTED + (220,))
+    d.rectangle([0, H - 10, int(W * t / DUR), H], fill=GOLD + (230,))
+    # flash on scene cuts
+    for c in CUTS:
+        if c - .05 <= t < c + .25:
+            fa = 1 - seg(t, c - .05, c + .25)
+            d.rectangle([0, 0, W, H], fill=GOLD_HI + (int(90 * fa),))
+    img.alpha_composite(ov)
+    img.convert("RGB").save(os.path.join(FR, f"{n:05d}.jpg"), quality=92)
 
 def music(path):
     sr = 44100; t = np.arange(int(sr * DUR)) / sr; bpm = 120; beat = 60 / bpm
     out = np.zeros_like(t)
-    # kick on every beat
-    for k in np.arange(0, DUR, beat):
-        i = int(k * sr); L = int(.25 * sr); tt = np.arange(L) / sr
-        seg_ = np.sin(2 * np.pi * (50 + 90 * np.exp(-tt * 30)) * tt) * np.exp(-tt * 12)
-        out[i:i + L] += seg_[:len(out) - i] * .8
-    # hi-hat offbeats
+    def add(i, s):
+        if i < len(out): out[i:i + len(s)] += s[:len(out) - i]
+    for k in np.arange(0, DUR, beat):  # kick
+        L = int(.25 * sr); tt = np.arange(L) / sr
+        add(int(k * sr), np.sin(2 * np.pi * (50 + 90 * np.exp(-tt * 30)) * tt) * np.exp(-tt * 12) * .8)
     rng = np.random.default_rng(1)
-    for k in np.arange(beat / 2, DUR, beat):
-        i = int(k * sr); L = int(.05 * sr)
-        out[i:i + L] += (rng.standard_normal(L) * np.exp(-np.arange(L) / sr * 80))[:len(out) - i] * .12
-    # chord pad (Am - F - C - G), 2s each
+    for k in np.arange(beat / 2, DUR, beat):  # hats
+        L = int(.05 * sr); add(int(k * sr), rng.standard_normal(L) * np.exp(-np.arange(L) / sr * 80) * .12)
+    for k in np.arange(beat, DUR, beat * 2):  # clap
+        L = int(.12 * sr); add(int(k * sr), rng.standard_normal(L) * np.exp(-np.arange(L) / sr * 35) * .22)
     chords = [[220, 261.6, 329.6], [174.6, 220, 261.6], [261.6, 329.6, 392], [196, 246.9, 293.7]]
-    for ci, k in enumerate(np.arange(0, DUR, 2.0)):
-        i = int(k * sr); L = int(2 * sr); tt = np.arange(L) / sr
+    for ci, k in enumerate(np.arange(0, DUR, 2.0)):  # pad
+        L = int(2 * sr); tt = np.arange(L) / sr
         env = np.minimum(1, tt * 8) * np.minimum(1, (2 - tt) * 8)
-        s = sum(np.sin(2 * np.pi * f * tt) + .3 * np.sin(4 * np.pi * f * tt) for f in chords[ci % 4]) * env * .07
-        out[i:i + L] += s[:len(out) - i]
-    fade = np.minimum(1, np.minimum(t / .5, (DUR - t) / 1.0)); out *= fade
+        add(int(k * sr), sum(np.sin(2 * np.pi * f * tt) + .3 * np.sin(4 * np.pi * f * tt) for f in chords[ci % 4]) * env * .07)
+    for c in [S2, S3, S4, S5]:  # riser whoosh into each cut
+        L = int(.6 * sr); tt = np.arange(L) / sr
+        add(int((c - .6) * sr), rng.standard_normal(L) * (tt / .6) ** 2 * .25)
+    fade = np.minimum(1, np.minimum(t / .3, (DUR - t) / 1.2)); out *= fade
     out = np.int16(out / np.abs(out).max() * 0.85 * 32767)
     with wave.open(path, "wb") as w:
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr); w.writeframes(out.tobytes())
 
 if __name__ == "__main__":
-    for n in range(N): frame(n)
+    import sys
+    only = [int(x) for x in sys.argv[1:]]
+    for n in (only or range(N)): frame(n)
+    if only: sys.exit()
     wav = os.path.join(OUT, "music.wav"); music(wav)
     mp4 = os.path.join(OUT, "traxa_promo.mp4")
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(FPS), "-i", os.path.join(FR, "%05d.jpg"),
-                    "-i", wav, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20", "-preset", "medium",
+                    "-i", wav, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "19", "-preset", "medium",
                     "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", mp4], check=True)
-    # thumbnail / cover
-    Image.open(os.path.join(FR, f"{int(16*FPS):05d}.jpg")).save(os.path.join(OUT, "cover.jpg"), quality=92)
+    Image.open(os.path.join(FR, f"{int((S4 + 2.6) * FPS):05d}.jpg")).save(os.path.join(OUT, "cover.jpg"), quality=92)
     print("done", mp4)
