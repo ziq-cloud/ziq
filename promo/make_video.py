@@ -336,28 +336,60 @@ def frame(n):
     img.convert("RGB").save(os.path.join(FR, f"{n:05d}.jpg"), quality=92)
 
 def music(path):
-    sr = 44100; t = np.arange(int(sr * DUR)) / sr; bpm = 120; beat = 60 / bpm
-    out = np.zeros_like(t)
-    def add(i, s):
-        if i < len(out): out[i:i + len(s)] += s[:len(out) - i]
-    for k in np.arange(0, DUR, beat):  # kick
-        L = int(.25 * sr); tt = np.arange(L) / sr
-        add(int(k * sr), np.sin(2 * np.pi * (50 + 90 * np.exp(-tt * 30)) * tt) * np.exp(-tt * 12) * .8)
-    rng = np.random.default_rng(1)
-    for k in np.arange(beat / 2, DUR, beat):  # hats
-        L = int(.05 * sr); add(int(k * sr), rng.standard_normal(L) * np.exp(-np.arange(L) / sr * 80) * .12)
-    for k in np.arange(beat, DUR, beat * 2):  # clap
-        L = int(.12 * sr); add(int(k * sr), rng.standard_normal(L) * np.exp(-np.arange(L) / sr * 35) * .22)
-    chords = [[220, 261.6, 329.6], [174.6, 220, 261.6], [261.6, 329.6, 392], [196, 246.9, 293.7]]
-    for ci, k in enumerate(np.arange(0, DUR, 2.0)):  # pad
-        L = int(2 * sr); tt = np.arange(L) / sr
-        env = np.minimum(1, tt * 8) * np.minimum(1, (2 - tt) * 8)
-        add(int(k * sr), sum(np.sin(2 * np.pi * f * tt) + .3 * np.sin(4 * np.pi * f * tt) for f in chords[ci % 4]) * env * .07)
-    for c in [S2, S3, S4, S5]:  # riser whoosh into each cut
+    """Original trap-style beat: 140 bpm, A minor, beat drops when the brand appears."""
+    sr = 44100; t = np.arange(int(sr * DUR)) / sr
+    out = np.zeros_like(t); rng = np.random.default_rng(5)
+    step = 60 / 140 / 4                      # 16th note
+    bar = step * 16
+    def add(t0, sig, g=1.0):
+        i = int(t0 * sr)
+        if 0 <= i < len(out): out[i:i + len(sig)] += sig[:len(out) - i] * g
+    def env(L, dec): tt = np.arange(L) / sr; return tt, np.exp(-tt * dec)
+    def saw(f, tt, n=8): return sum(np.sin(2 * np.pi * f * k * tt) / k for k in range(1, n))
+    # Am - F - Dm - E  (root for 808, chord tones for plucks)
+    prog = [(55.0, [440, 523.3, 659.3]), (43.65, [349.2, 440, 523.3]),
+            (36.71, [293.7, 349.2, 440]), (41.2, [329.6, 415.3, 493.9])]
+    drop = S2
+    nb = int(DUR / bar) + 1
+    for bi in range(nb):
+        b0 = bi * bar; root, ch = prog[bi % 4]
+        on = b0 >= drop - 1e-6
+        # plucky arpeggio (always on)
+        arp = [0, 1, 2, 1, 0, 2, 1, 2]
+        for k in range(8):
+            f = ch[arp[k]] * (2 if k in (3, 7) else 1)
+            tt, e = env(int(step * 2 * sr), 9)
+            add(b0 + k * step * 2, saw(f, tt, 6) * e, 0.05)
+        # soft pad
+        tt = np.arange(int(bar * sr)) / sr
+        pe = np.minimum(1, tt * 4) * np.minimum(1, (bar - tt) * 6)
+        add(b0, sum(np.sin(2 * np.pi * f / 2 * tt) for f in ch) * pe, 0.035)
+        if not on: continue
+        # 808 bass with glide + saturation
+        for st_, ln in ((0, 7), (10, 6)):
+            tt = np.arange(int(step * ln * sr)) / sr
+            f = root * (1 + 0.6 * np.exp(-tt * 40))
+            sig = np.tanh(2.2 * np.sin(2 * np.pi * np.cumsum(f) / sr)) * np.minimum(1, (step * ln - tt) * 20)
+            add(b0 + st_ * step, sig, 0.45)
+        # kick
+        for st_ in (0, 7, 10):
+            tt, e = env(int(.2 * sr), 18)
+            add(b0 + st_ * step, np.sin(2 * np.pi * (45 + 120 * np.exp(-tt * 45)) * tt) * e, 0.7)
+        # clap / snare on beat 3 (half-time)
+        tt, e = env(int(.18 * sr), 28)
+        add(b0 + 8 * step, (rng.standard_normal(len(tt)) * .8 + np.sin(2 * np.pi * 190 * tt)) * e, 0.32)
+        # hi-hats: 8ths, with 32nd rolls at the end of every 2nd bar
+        hats = [i * 2 * step for i in range(8)]
+        if bi % 2: hats = hats[:6] + [12 * step + i * step / 2 for i in range(8)]
+        for h in hats:
+            tt, e = env(int(.035 * sr), 110)
+            add(b0 + h, rng.standard_normal(len(tt)) * e, 0.10)
+    for c in CUTS:  # riser whoosh into each scene change
         L = int(.6 * sr); tt = np.arange(L) / sr
-        add(int((c - .6) * sr), rng.standard_normal(L) * (tt / .6) ** 2 * .25)
-    fade = np.minimum(1, np.minimum(t / .3, (DUR - t) / 1.2)); out *= fade
+        add(c - .6, rng.standard_normal(L) * (tt / .6) ** 2, 0.22)
+    fade = np.minimum(1, np.minimum(t / .3, (DUR - t) / 1.5)); out *= fade
     out = out / np.abs(out).max() * 0.22  # music bed under the voice
+    if os.environ.get("MUSIC") == "0": out[:] = 0  # voice-only version
     vo = np.zeros_like(out)
     for k, (a0, _) in T.items():
         a = CLIPS[k]; i = int(a0 * sr); vo[i:i + len(a)] += a[:len(vo) - i]
