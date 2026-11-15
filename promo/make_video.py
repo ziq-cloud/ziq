@@ -79,6 +79,7 @@ parts = [(random.uniform(0, W), random.uniform(0, H), random.uniform(15, 60), ra
 def particles(d, t):
     for x, y0, sp, sz, ph in parts:
         y = (y0 - sp * t) % H
+        x = (x + sz * 25 * math.sin(t * .35)) % W  # bigger (closer) particles drift more: parallax
         a = int(110 * (0.5 + 0.5 * math.sin(t * 2 + ph)))
         d.ellipse([x - sz, y - sz, x + sz, y + sz], fill=GOLD_HI + (a,))
 
@@ -127,6 +128,55 @@ def logo(img, src, cx, cy, size, a, glow=None, rot=0):
         g.alpha_composite(sh, (80, 80)); g = g.filter(ImageFilter.GaussianBlur(40))
         paste_alpha(img, g, (cx - g.width / 2, cy - g.height / 2), a)
     paste_alpha(img, im, (cx - im.width / 2, cy - im.height / 2), a)
+
+# ---------- 3D: perspective warp of a flat layer ----------
+def _coeffs(dst, src):
+    A, B = [], []
+    for (X, Y), (u, v) in zip(dst, src):
+        A.append([X, Y, 1, 0, 0, 0, -u * X, -u * Y]); B.append(u)
+        A.append([0, 0, 0, X, Y, 1, -v * X, -v * Y]); B.append(v)
+    return np.linalg.solve(np.array(A, float), np.array(B, float)).tolist()
+
+def warp3d(img, layer, cx, cy, ry=0.0, rx=0.0, scale=1.0, a=1.0, f=2400, shade=True):
+    """Rotate a flat RGBA layer around its centre (ry: Y axis, rx: X axis, degrees) and project it."""
+    if a <= 0: return
+    w, h = layer.size; cy_, sy_ = math.cos(math.radians(ry)), math.sin(math.radians(ry))
+    cx_, sx_ = math.cos(math.radians(rx)), math.sin(math.radians(rx))
+    pts = []
+    for x, y in ((-w / 2, -h / 2), (w / 2, -h / 2), (w / 2, h / 2), (-w / 2, h / 2)):
+        X, Z = x * cy_, -x * sy_
+        Y, Z = y * cx_ - Z * sx_, y * sx_ + Z * cx_
+        k = f / max(200, f + Z) * scale
+        pts.append((cx + X * k, cy + Y * k))
+    x0 = int(min(p[0] for p in pts)); y0 = int(min(p[1] for p in pts))
+    x1 = int(max(p[0] for p in pts)) + 1; y1 = int(max(p[1] for p in pts)) + 1
+    if x1 < 0 or x0 > W or y1 < 0 or y0 > H or x1 - x0 < 2 or y1 - y0 < 2: return
+    if shade:  # faces turned away from the camera get darker
+        dark = 0.6 * (1 - abs(cy_ * cx_))
+        if dark > 0.01:
+            rgb = layer.convert("RGB").point(lambda v: int(v * (1 - dark))); rgb.putalpha(layer.getchannel("A")); layer = rgb
+    c = _coeffs([(px - x0, py - y0) for px, py in pts], [(0, 0), (w, 0), (w, h), (0, h)])
+    out = layer.transform((x1 - x0, y1 - y0), Image.PERSPECTIVE, c, Image.BICUBIC)
+    # clip to canvas so alpha_composite never gets a negative offset
+    cl, ct = max(0, -x0), max(0, -y0); cr, cb = min(out.width, W - x0), min(out.height, H - y0)
+    if cr <= cl or cb <= ct: return
+    paste_alpha(img, out.crop((cl, ct, cr, cb)), (x0 + cl, y0 + ct), a)
+
+def logo3d(img, src, cx, cy, size, a, ang, glow=None, depth=16):
+    """Logo spinning around the Y axis, with an extruded gold edge."""
+    if a <= 0 or size < 2: return
+    s_ = size / max(src.size)
+    im = src.resize((max(1, int(src.width * s_)), max(1, int(src.height * s_))), Image.LANCZOS)
+    c = math.cos(math.radians(ang)); sn = math.sin(math.radians(ang))
+    face = im if c >= 0 else im.transpose(Image.FLIP_LEFT_RIGHT)
+    fw = max(2, int(im.width * abs(c)))
+    face = face.resize((fw, im.height), Image.LANCZOS)
+    if glow: logo(img, im, cx, cy, size, a * .9 * (0.4 + 0.6 * abs(c)), glow=glow)
+    edge = Image.new("RGBA", face.size, GOLD_LO + (255,)); edge.putalpha(face.getchannel("A"))
+    for k in range(depth, 0, -1):  # extrusion
+        paste_alpha(img, edge, (cx - fw / 2 - sn * k * .9, cy - im.height / 2), a)
+    lit = face.convert("RGB").point(lambda v: int(min(255, v * (0.7 + 0.3 * abs(c))))); lit.putalpha(face.getchannel("A"))
+    paste_alpha(img, lit, (cx - fw / 2, cy - im.height / 2), a)
 
 def shine(img, box, t, radius):
     """diagonal light sweep across a rounded box, t in 0..1"""
@@ -294,26 +344,44 @@ for sh in SHOTS:
         _, f, r0, r1 = sh[0]
         REC_SHOTS[(f, r0, r1)] = extract(f, f"rec_{f}_{r0}_{r1}", f"fps={FPS},scale={PW}:-2", r1 - r0, ss=r0)
 
-def phone_frame(img, scr, px, py, a, ys=0):
-    paste_alpha(img, PHONE_GLOW, (px - BZ - 100, py - BZ - 100), a)
-    paste_alpha(img, PHONE, (px - BZ, py - BZ), a)
-    if -PW < px < W:
-        sc = scr.crop((0, ys, PW, ys + PH)).convert("RGBA"); sc.putalpha(SCREEN_MASK.point(lambda v: int(v * a)))
-        img.alpha_composite(sc, (px, py))
+M3 = 100  # glow margin around the phone layer
+def phone_layer(scr, ys, boxes=(), sheen=0.0):
+    L = Image.new("RGBA", (PW + 2 * BZ + 2 * M3, PH + 2 * BZ + 2 * M3), (0, 0, 0, 0))
+    L.alpha_composite(PHONE_GLOW, (0, 0)); L.alpha_composite(PHONE, (M3, M3))
+    sc = scr.crop((0, ys, PW, ys + PH)).convert("RGBA"); sc.putalpha(SCREEN_MASK)
+    ox, oy = M3 + BZ, M3 + BZ; L.alpha_composite(sc, (ox, oy))
+    if boxes:
+        lay = Image.new("RGBA", L.size, (0, 0, 0, 0)); d = ImageDraw.Draw(lay)
+        for (x0, by0, x1, by1, al) in boxes:
+            bt0, bt1 = max(oy, oy + by0 * SC - ys - 6), min(oy + PH, oy + by1 * SC - ys + 6)
+            d.rounded_rectangle([ox + x0 * SC - 6, bt0, ox + x1 * SC + 6, bt1], 22, outline=GOLD_HI + (int(255 * al),), width=6)
+        L.alpha_composite(lay.filter(ImageFilter.GaussianBlur(10))); L.alpha_composite(lay)
+    if sheen > 0.01:  # glass reflection that slides with the rotation
+        g = Image.new("RGBA", (PW, PH), (0, 0, 0, 0)); gd = ImageDraw.Draw(g)
+        bx = int(PW * (0.5 + 0.9 * sheen))
+        gd.polygon([(bx - 260, 0), (bx - 60, 0), (bx - 360, PH), (bx - 560, PH)], fill=(255, 255, 255, 46))
+        g = g.filter(ImageFilter.GaussianBlur(30))
+        g.putalpha(Image.fromarray(np.minimum(np.array(g.getchannel("A")), np.array(SCREEN_MASK))))
+        L.alpha_composite(g, (ox, oy))
+    return L
+
+def phone3d(img, scr, ys, pin, pout, t, a, boxes=()):
+    """Phone swings in from the right (rotating on Y), floats, then swings out to the left."""
+    ry = 78 * (1 - pin) - 78 * ease(pout) + 5 * math.sin(t * 1.1)
+    rx = 4 * math.sin(t * .8 + 1)
+    cx = W / 2 + 520 * (1 - pin) - 520 * ease(pout)
+    cy = 450 + PH / 2 + 20 * math.sin(t * 1.3)
+    L = phone_layer(scr, ys, boxes, sheen=ry / 90)
+    warp3d(img, L, cx, cy, ry=ry, rx=rx, a=a)
 
 def phone_shot(img, i, t):
     name, title, sub, y0, pan, boxes = SHOTS[i]
     s0, s1 = SHOT_T[i], SHOT_T[i + 1]
-    pin, pout = ease(seg(t, s0, s0 + .5)), seg(t, s1 - .35, s1)
-    a = pin * (1 - pout)
+    pin, pout = ease(seg(t, s0, s0 + .6)), seg(t, s1 - .4, s1)
+    a = min(1, pin * 1.5) * (1 - pout ** 3)
     dx = int(W * (1 - pin)) - int(W * ease(pout))
-    # titles
-    ctext(img, 250, title, font("Black", 64), "gold", a, dx=dx, glow=GOLD)
+    ctext(img, 250, title, font("Black", 64), "gold", pin * (1 - pout), dx=dx, glow=GOLD)
     ctext(img, 345, sub, font("Medium", 44), WHITE, ease(seg(t, s0 + .2, s0 + .6)) * (1 - pout), dx=dx)
-    # phone
-    px = (W - PW) // 2 + dx; py = 450
-    paste_alpha(img, PHONE_GLOW, (px - BZ - 100, py - BZ - 100), a)
-    paste_alpha(img, PHONE, (px - BZ, py - BZ), a)
     if isinstance(name, str):
         src = SCREENS[name]
     else:  # play the recording slice across the shot
@@ -321,21 +389,12 @@ def phone_shot(img, i, t):
         frames = REC_SHOTS[(f, r0, r1)]
         k = int(seg(t, s0 + .3, s1 - .3) * (len(frames) - 1))
         src = hide_dot(Image.open(frames[k]).convert("RGB"))
-    ys = int(y0 * SC + pan * SC * ease(seg(t, s0 + .5, s1 - .4)))
-    ys = min(ys, src.height - PH)
-    scr = src.crop((0, ys, PW, ys + PH)).convert("RGBA"); scr.putalpha(SCREEN_MASK.point(lambda v: int(v * a)))
-    img.alpha_composite(scr, (max(-PW, min(W, px)), py)) if -PW < px < W else None
-    # pulsing highlight boxes
-    lay = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(lay)
+    ys = min(int(y0 * SC + pan * SC * ease(seg(t, s0 + .5, s1 - .4))), src.height - PH)
+    bx = []
     for (x0, by0, x1, by1, off) in boxes:
         ha = ease(seg(t, s0 + off, s0 + off + .4)) * (1 - pout)
-        if ha <= 0: continue
-        pulse = 0.75 + 0.25 * math.sin((t - s0 - off) * 6)
-        bx0, bx1 = px + x0 * SC - 6, px + x1 * SC + 6
-        bty0, bty1 = py + by0 * SC - ys - 6, py + by1 * SC - ys + 6
-        bty0, bty1 = max(py, bty0), min(py + PH, bty1)
-        d.rounded_rectangle([bx0, bty0, bx1, bty1], 22, outline=GOLD_HI + (int(255 * ha * pulse),), width=6)
-    g = lay.filter(ImageFilter.GaussianBlur(10)); img.alpha_composite(g); img.alpha_composite(lay)
+        if ha > 0: bx.append((x0, by0, x1, by1, ha * (0.75 + 0.25 * math.sin((t - s0 - off) * 6))))
+    phone3d(img, src, ys, pin, pout, t, a, bx)
 
 def at(k, off=0): return T[k][0] + off
 _h = T["hook2"][0]
@@ -348,21 +407,28 @@ _p0, _p1 = T["proof"]
 COUNTS = [_p0 + (_p1 - _p0) * f for f in (.22, .5, .72)]  # when each stat starts counting
 
 BANNERS = BANNERS_SPEC
+def _ifang_big():
+    s_ = 760 / max(IFANG.size); im = IFANG.resize((int(IFANG.width * s_), int(IFANG.height * s_)), Image.LANCZOS)
+    L = Image.new("RGBA", (im.width + 200, im.height + 200), (0, 0, 0, 0))
+    sh = Image.new("RGBA", im.size, GOLD + (255,)); sh.putalpha(im.getchannel("A"))
+    L.alpha_composite(sh, (100, 100)); L = L.filter(ImageFilter.GaussianBlur(40)); L.alpha_composite(im, (100, 100))
+    return L
+IFANG_BIG = _ifang_big()
 ICON_SMALL = TRAXA.resize((84, 84), Image.LANCZOS)
 def notif_banner(img, y, title, body, t, t0, out):
-    p = seg(t, t0, t0 + .4); a = ease(p) * out
+    p = seg(t, t0, t0 + .5); a = min(1, ease(p) * 1.6) * out
     if a <= 0: return
-    yy = y - int(120 * (1 - back(p)))
-    lay = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(lay)
-    d.rounded_rectangle([70, yy, W - 70, yy + 180], 38, fill=(38, 36, 34, int(235 * a)), outline=GOLD + (int(120 * a),), width=2)
-    img.alpha_composite(lay.filter(ImageFilter.GaussianBlur(0)))
-    paste_alpha(img, ICON_SMALL, (100, yy + 48), a)
-    d2 = ImageDraw.Draw(lay2 := Image.new("RGBA", (W, H), (0, 0, 0, 0)))
-    d2.text((210, yy + 28), "TRAXA", font=font("SemiBold", 32), fill=MUTED + (int(255 * a),))
-    d2.text((W - 230, yy + 28), tr("sekarang"), font=font("Regular", 30), fill=MUTED + (int(255 * a),))
-    d2.text((210, yy + 70), tr(title), font=font("Bold", 44), fill=WHITE + (int(255 * a),))
-    d2.text((210, yy + 124), tr(body), font=font("Regular", 34), fill=(210, 205, 195, int(255 * a)))
-    img.alpha_composite(lay2)
+    bw, bh, m = W - 140, 180, 20
+    L = Image.new("RGBA", (bw + 2 * m, bh + 2 * m), (0, 0, 0, 0)); d = ImageDraw.Draw(L)
+    d.rounded_rectangle([m, m, m + bw, m + bh], 38, fill=(38, 36, 34, 240), outline=GOLD + (140,), width=2)
+    L.alpha_composite(ICON_SMALL, (m + 30, m + 48))
+    d.text((m + 140, m + 28), "TRAXA", font=font("SemiBold", 32), fill=MUTED)
+    d.text((m + bw - 160, m + 28), tr("sekarang"), font=font("Regular", 30), fill=MUTED)
+    d.text((m + 140, m + 70), tr(title), font=font("Bold", 44), fill=WHITE)
+    d.text((m + 140, m + 124), tr(body), font=font("Regular", 34), fill=(210, 205, 195))
+    q = back(p)
+    warp3d(img, L, W / 2, y + bh / 2 - 160 * (1 - q), rx=-75 * (1 - q) + 3 * math.sin(t * 1.5 + y),
+           ry=4 * math.sin(t * 1.1 + y / 200), scale=0.75 + 0.25 * q, a=a)
 
 def frame(n):
     t = n / FPS
@@ -370,7 +436,8 @@ def frame(n):
     # chart, stronger during hook
     strength = 0.55 if t < S2 else 0.16
     if t >= S2 - .3 and t < S2: strength = 0.55 - 0.39 * seg(t, S2 - .3, S2)
-    img.alpha_composite(chart_layer(t, strength))
+    ch = chart_layer(t, strength); px_ = int(40 * math.sin(t * .35))
+    img.alpha_composite(ch.crop((max(0, -px_), 0, W - max(0, px_), H)), (max(0, px_), 0))
     pl = Image.new("RGBA", (W, H), (0, 0, 0, 0)); particles(ImageDraw.Draw(pl), t); img.alpha_composite(pl)
 
     # --- Scene 1: hook ---
@@ -388,13 +455,13 @@ def frame(n):
 
     # --- Scene 2: Traxa reveal with real screen recording ---
     if S2 <= t < S3:
-        pin = ease(seg(t, S2, S2 + .5)); pout = seg(t, S3 - .35, S3)
+        pin = ease(seg(t, S2, S2 + .6)); pout = seg(t, S3 - .4, S3)
         a = pin * (1 - pout); dx = -int(W * ease(pout))
         ctext(img, 190, "TRAXA", font("Black", 130), "gold", a, dx=dx, scale=0.7 + 0.3 * back(seg(t, S2, S2 + .6)), glow=GOLD)
         ctext(img, 350, "Signal trading terus di telefon anda", font("Medium", 46), WHITE, ease(seg(t, S2 + .4, S2 + .8)) * (1 - pout), dx=dx)
         rt = min(2.5, max(0, t - S2 - .3) * 0.75)  # stop on the home screen, before the feedback feed
         scr = hide_dot(Image.open(REC_INTRO[int(rt * FPS)]).convert("RGB"))
-        phone_frame(img, scr, (W - PW) // 2 + dx, 450 + int(300 * (1 - pin)), a, ys=int(130 * SC))
+        phone3d(img, scr, int(130 * SC), pin, ease(pout) * 0 + pout, t, min(1, pin * 1.5) * (1 - pout ** 3))
 
     # --- Scene 3: app tour ---
     if S3 <= t < SP:
@@ -406,34 +473,36 @@ def frame(n):
         out = 1 - seg(t, S4 - .4, S4)
         k = int((t - SP) * FPS); fb = Image.open(REC_FEED[min(k, len(REC_FEED) - 1)]).convert("RGBA")
         paste_alpha(img, fb, (0, 0), 0.35 * ease(seg(t, SP, SP + .5)) * out)
-        logo(img, TRAXA, W / 2, 360, 200 * back(seg(t, SP, SP + .6)), out, glow=GOLD)
+        sp = ease(seg(t, SP, SP + 1.2)); logo3d(img, TRAXA, W / 2, 360, 200, out * min(1, sp * 3), -360 * (1 - sp) + 18 * math.sin(t * 1.4), glow=GOLD)
         ctext(img, 510, "Baru 3 minggu dilancarkan", font("Bold", 64), WHITE, ease(seg(t, SP, SP + .5)) * out)
         p0, p1_ = T["proof"]; dur = p1_ - p0
         stats = [(5000, "+", "TRADER", COUNTS[0]), (38, "", "NEGARA", COUNTS[1]), (300, "+", "FEEDBACK", COUNTS[2])]
         for i, (val, suf, label, st) in enumerate(stats):
             a = ease(seg(t, st - .3, st + .1)) * out
             if a <= 0: continue
-            y0 = 660 + i * 300; x0 = 110 + int(150 * (1 - a))
-            lay = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(lay)
-            d.rounded_rectangle([x0, y0, x0 + 860, y0 + 250], 40, fill=(255, 255, 255, int(16 * a)), outline=GOLD + (int(190 * a),), width=3)
-            img.alpha_composite(lay)
+            y0 = 660 + i * 300; m = 30
+            L = Image.new("RGBA", (860 + 2 * m, 250 + 2 * m), (0, 0, 0, 0)); d = ImageDraw.Draw(L)
+            d.rounded_rectangle([m, m, m + 860, m + 250], 40, fill=(30, 27, 22, 200), outline=GOLD + (190,), width=3)
             c0, c1 = st - .3, st + COUNT_LEN
             v = int(round(val * (1 - (1 - seg(t, c0, c1)) ** 4)))  # fast start, slow landing
             q = seg(t, c1, c1 + .35); pop = 1 + .14 * math.sin(math.pi * q)
             if 0 < q < 1:  # flash the card when the number lands
-                fl = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-                ImageDraw.Draw(fl).rounded_rectangle([x0, y0, x0 + 860, y0 + 250], 40, outline=GOLD_HI + (int(255 * math.sin(math.pi * q)),), width=10)
-                img.alpha_composite(fl.filter(ImageFilter.GaussianBlur(12)))
+                fl = Image.new("RGBA", L.size, (0, 0, 0, 0))
+                ImageDraw.Draw(fl).rounded_rectangle([m, m, m + 860, m + 250], 40, outline=GOLD_HI + (int(255 * math.sin(math.pi * q)),), width=10)
+                L.alpha_composite(fl.filter(ImageFilter.GaussianBlur(12)))
             ti = text_img(f"{v:,}{suf if seg(t, c0, c1) >= 1 else ''}", font("Black", 130), "gold")
             if pop != 1: ti = ti.resize((int(ti.width * pop), int(ti.height * pop)), Image.LANCZOS)
-            paste_alpha(img, ti, (x0 + 50, y0 + 125 - ti.height / 2), a)
+            L.alpha_composite(ti, (m + 50, int(m + 125 - ti.height / 2)))
             li = text_img(label, font("Bold", 46), WHITE)
-            paste_alpha(img, li, (x0 + 810 - li.width, y0 + 125 - li.height / 2), a)
+            L.alpha_composite(li, (m + 810 - li.width, int(m + 125 - li.height / 2)))
+            pin_ = back(seg(t, st - .3, st + .3))
+            warp3d(img, L, W / 2, y0 + 125, rx=80 * (1 - pin_) + 3 * math.sin(t * 1.2 + i),
+                   ry=7 * math.sin(t * .9 + i * 1.7), a=a)
 
     # --- Scene 4: CTA with code ---
     if S4 <= t < S5:
         out = 1 - seg(t, S5 - .4, S5)
-        logo(img, TRAXA, W / 2, 400, 170 * ease(seg(t, S4, S4 + .4)), out)
+        sp = ease(seg(t, S4, S4 + 1.0)); logo3d(img, TRAXA, W / 2, 400, 170, out * min(1, sp * 3), 360 * (1 - sp) + 15 * math.sin(t * 1.3))
         ctext(img, 540, "Daftar sekarang", font("Black", 100), WHITE, ease(seg(t, S4, S4 + .4)) * out)
         ctext(img, 670, "guna kod jemputan saya", font("Medium", 56), MUTED, ease(seg(t, S4 + .2, S4 + .6)) * out)
         p = seg(t, at("code") - .35, at("code") + .15); a2 = ease(p) * out
@@ -461,7 +530,9 @@ def frame(n):
     # --- Scene 5: iFANG FX outro ---
     if t >= S5:
         p = seg(t, S5, S5 + .7)
-        logo(img, IFANG, W / 2, 720, 760 * back(p), ease(p), glow=GOLD)
+        sz = IFANG_BIG.size
+        warp3d(img, IFANG_BIG, W / 2, 720, ry=-90 * (1 - back(p)) + 8 * math.sin(t * 1.2), rx=4 * math.sin(t * .9),
+               a=min(1, ease(p) * 2), shade=False)
         a = ease(seg(t, at("outro") - .1, at("outro", .4)))
         ctext(img, 1080, "Join channel Telegram", font("SemiBold", 60), WHITE, a)
         if a > 0:
