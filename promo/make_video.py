@@ -217,6 +217,34 @@ PHONE_GLOW = Image.new("RGBA", (PHONE.width + 200, PHONE.height + 200), (0, 0, 0
 ImageDraw.Draw(PHONE_GLOW).rounded_rectangle([100, 100, 100 + PHONE.width, 100 + PHONE.height], 72, fill=GOLD + (110,))
 PHONE_GLOW = PHONE_GLOW.filter(ImageFilter.GaussianBlur(45))
 
+# ---------- real screen recordings ----------
+def extract(src, dst, vf, dur):
+    d = os.path.join(OUT, dst)
+    if not os.path.isdir(d) or not os.listdir(d):
+        os.makedirs(d, exist_ok=True)
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", os.path.join(HERE, "assets/rec", src), "-t", str(dur),
+                        "-vf", vf, "-q:v", "3", os.path.join(d, "%04d.jpg")], check=True)
+    return sorted(os.path.join(d, f) for f in os.listdir(d))
+REC_INTRO = extract("rec2.mov", "rec_intro", f"fps={FPS},scale={PW}:-2", 4.8)   # splash -> swipe -> globe -> home
+REC_FEED = extract("rec1.mov", "rec_feed", f"fps={FPS},scale={W}:-2,crop={W}:{H}:0:200,gblur=sigma=14", 8.4)  # feedback feed, blurred
+
+DOT = (565, 575, 46)  # iOS AssistiveTouch button position in the scaled recording
+_dm = Image.new("L", (W, H), 0)
+def hide_dot(im):
+    cx, cy, r = DOT; a = np.array(im)
+    yy_, xx_ = np.ogrid[:a.shape[0], :a.shape[1]]; d2 = (xx_ - cx) ** 2 + (yy_ - cy) ** 2
+    ring = a[(d2 > (r + 4) ** 2) & (d2 < (r + 12) ** 2)]
+    a[d2 <= r * r] = np.median(ring, axis=0).astype(np.uint8)
+    out = Image.fromarray(a); box = (cx - r - 14, cy - r - 14, cx + r + 14, cy + r + 14)
+    out.paste(out.crop(box).filter(ImageFilter.GaussianBlur(6)), box[:2]); return out
+
+def phone_frame(img, scr, px, py, a, ys=0):
+    paste_alpha(img, PHONE_GLOW, (px - BZ - 100, py - BZ - 100), a)
+    paste_alpha(img, PHONE, (px - BZ, py - BZ), a)
+    if -PW < px < W:
+        sc = scr.crop((0, ys, PW, ys + PH)).convert("RGBA"); sc.putalpha(SCREEN_MASK.point(lambda v: int(v * a)))
+        img.alpha_composite(sc, (px, py))
+
 def phone_shot(img, i, t):
     name, title, sub, y0, pan, boxes = SHOTS[i]
     s0, s1 = SHOT_T[i], SHOT_T[i + 1]
@@ -293,14 +321,15 @@ def frame(n):
         for i, (t0, title, body) in enumerate(BANNERS):
             notif_banner(img, 820 + i * 215, title, body, t, t0, out)
 
-    # --- Scene 2: Traxa reveal ---
+    # --- Scene 2: Traxa reveal with real screen recording ---
     if S2 <= t < S3:
-        a = win(t, S2, S3, .4, .4); p = seg(t, S2, S2 + .7)
-        size = 420 * back(p)
-        logo(img, TRAXA, W / 2, 720, size, a, glow=GOLD)
-        ctext(img, 1000, "TRAXA", font("Black", 180), "gold", win(t, S2 + .5, S3, .5, .4), glow=GOLD)
-        ctext(img, 1210, "T R A D I N G   A P P", font("SemiBold", 52), WHITE, win(t, S2 + .8, S3, .5, .4))
-        ctext(img, 1320, "Signal trading terus di telefon anda", font("Medium", 50), MUTED, win(t, at("brand", 1.4), S3, .5, .4))
+        pin = ease(seg(t, S2, S2 + .5)); pout = seg(t, S3 - .35, S3)
+        a = pin * (1 - pout); dx = -int(W * ease(pout))
+        ctext(img, 190, "TRAXA", font("Black", 130), "gold", a, dx=dx, scale=0.7 + 0.3 * back(seg(t, S2, S2 + .6)), glow=GOLD)
+        ctext(img, 350, "Signal trading terus di telefon anda", font("Medium", 46), WHITE, ease(seg(t, S2 + .4, S2 + .8)) * (1 - pout), dx=dx)
+        rt = min(2.5, max(0, t - S2 - .3) * 0.75)  # stop on the home screen, before the feedback feed
+        scr = hide_dot(Image.open(REC_INTRO[int(rt * FPS)]).convert("RGB"))
+        phone_frame(img, scr, (W - PW) // 2 + dx, 450 + int(300 * (1 - pin)), a, ys=int(130 * SC))
 
     # --- Scene 3: app tour ---
     if S3 <= t < SP:
@@ -310,6 +339,8 @@ def frame(n):
     # --- Scene 3b: social proof counters ---
     if SP <= t < S4:
         out = 1 - seg(t, S4 - .4, S4)
+        k = int((t - SP) * FPS); fb = Image.open(REC_FEED[min(k, len(REC_FEED) - 1)]).convert("RGBA")
+        paste_alpha(img, fb, (0, 0), 0.35 * ease(seg(t, SP, SP + .5)) * out)
         logo(img, TRAXA, W / 2, 360, 200 * back(seg(t, SP, SP + .6)), out, glow=GOLD)
         ctext(img, 510, "Baru 3 minggu dilancarkan", font("Bold", 64), WHITE, ease(seg(t, SP, SP + .5)) * out)
         p0, p1_ = T["proof"]; dur = p1_ - p0
