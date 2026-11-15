@@ -1,7 +1,7 @@
 """Generate a vertical (1080x1920) promo video for TikTok / Telegram.
 Usage: python3 make_video.py  -> writes out/traxa_promo.mp4 and out/cover.jpg
 """
-import math, os, random, subprocess, wave
+import math, os, random, subprocess, time, wave
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
@@ -90,6 +90,7 @@ def paste_alpha(img, im, xy, a):
     img.alpha_composite(im, (int(xy[0]), int(xy[1])))
 
 def text_img(s, f, fill, stroke=0, stroke_fill=(0, 0, 0)):
+    s = tr(s)
     bb = f.getbbox(s, stroke_width=stroke)
     im = Image.new("RGBA", (bb[2] - bb[0] + 4, bb[3] - bb[1] + 4), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
@@ -140,9 +141,33 @@ def shine(img, box, t, radius):
     img.alpha_composite(band, (x0, y0))
 
 # ---------- voiceover (Malay neural TTS) + timeline ----------
-VOICE = os.environ.get("VOICE", "ms-MY-OsmanNeural")
+LANG = os.environ.get("LANG_VIDEO", "en")  # "en" or "bm"
+VOICE = os.environ.get("VOICE", "en-US-AndrewNeural" if LANG == "en" else "ms-MY-OsmanNeural")
+EN = {
+    "Masih teka-teka": "Still guessing", "bila nak ENTRY?": "your ENTRY?",
+    "Biar signal yang datang kat kau": "Let the signals come to you",
+    "Signal trading terus di telefon anda": "Trading signals, right on your phone",
+    "3 PAIR UTAMA": "3 MAIN PAIRS", "Gold  \u2022  Bitcoin  \u2022  Oil  \u2014  harga live": "Gold  \u2022  Bitcoin  \u2022  Oil  \u2014  live prices",
+    "REASON SETIAP ENTRY": "A REASON FOR EVERY ENTRY", "Entry, SL & TP siap dengan sebab": "Entry, SL & TP with the reason why",
+    "NOTIFIKASI SETIAP SIGNAL": "ALERTS FOR EVERY SIGNAL", "Setup baru, keputusan, berita & get ready alert": "New setups, results, news & get-ready alerts",
+    "Key level untuk setiap timeframe": "Key levels for every timeframe",
+    "BERITA & FUNDAMENTAL": "NEWS & FUNDAMENTALS", "Kalendar berita USD terus dalam app": "USD news calendar, built right in",
+    "KELAS EDUKASI": "EDUCATION LESSONS", "Market structure hingga breakout": "From market structure to breakouts",
+    "Setup baru: GOLD SELL": "New setup: GOLD SELL", "M15  \u2022  Entry, SL & TP siap dengan reason": "M15  \u2022  Entry, SL & TP with the reason",
+    "Harga hampir ke zon, setup mungkin datang": "Price nearing a zone, a setup may come",
+    "Amaran berita USD": "USD news warning", "30 minit sebelum berita impak tinggi": "30 min before high-impact news",
+    "sekarang": "now",
+    "Baru 3 minggu dilancarkan": "Just 3 weeks since launch", "TRADER": "TRADERS", "NEGARA": "COUNTRIES",
+    "Daftar sekarang": "Sign up now", "guna kod jemputan saya": "with my invite code", "Link pendaftaran:": "Sign-up link:",
+    "Link ada di bio / pinned \u2191": "Link in bio / pinned \u2191",
+    "Join channel Telegram": "Join our Telegram channel", "Follow untuk tips & update trading": "Follow for tips & trading updates",
+    "Kod jemputan: ZIQFX": "Invite code: ZIQFX",
+    "Trading melibatkan risiko. Hanya labur apa yang": "Trading involves risk. Only trade what you can",
+    "anda sanggup rugi. Bukan nasihat kewangan.": "afford to lose. Not financial advice.",
+}
+def tr(s): return EN.get(s, s) if LANG == "en" else s
 VDIR = os.path.join(HERE, "voice", VOICE)
-RATE = "+15%"
+RATE = "+15%" if LANG == "bm" else "+5%"
 LINES = [
     ("hook1", "Masih teka-teka bila nak entry?"),
     ("hook2", "Biar signal yang datang kat kau."),
@@ -160,6 +185,24 @@ LINES = [
     ("outro", "Join channel Telegram, i-Fang F X, untuk tips dan update trading."),
     ("risk", "Ingat, trading ada risiko. Labur dengan bijak."),
 ]
+if LANG == "en":
+    LINES = [
+        ("hook1", "Still guessing your entry?"),
+        ("hook2", "Let the signals come to you."),
+        ("brand", "Try TRAXA Trading App. Trading signals, right on your phone."),
+        ("p1", "Three main pairs: Gold, Bitcoin and Oil, with live prices."),
+        ("p2", "Every setup comes with entry, stop loss and take profit, plus the reason why it was sent."),
+        ("p3", "New setups, results, news warnings and get-ready alerts, pushed straight to your phone."),
+        ("p4", "Support, resistance and key levels for every timeframe."),
+        ("pn", "The USD news calendar and gold fundamentals are built right in."),
+        ("p5", "Plus education lessons, from market structure to breakouts."),
+        ("proof", "Just three weeks since launch: over five thousand traders, thirty-eight countries, and more than three hundred feedback posts."),
+        ("cta1", "Sign up now with my invite code."),
+        ("code", "Z. I. Q. F. X."),
+        ("cta2", "The sign-up link is in my bio and pinned."),
+        ("outro", "Join the i-Fang F X Telegram channel for tips and trading updates."),
+        ("risk", "Remember, trading involves risk. Trade responsibly."),
+    ]
 SCENE_START = {"brand", "p1", "p2", "p3", "p4", "pn", "p5", "proof", "cta1", "outro"}  # a new scene begins with these lines
 
 def tts(key, text):
@@ -169,7 +212,13 @@ def tts(key, text):
     if not os.path.exists(mp3):  # needs network access to speech.platform.bing.com
         cmd = ["edge-tts", "--voice", VOICE, f"--rate={RATE}", "--text", text, "--write-media", mp3]
         if os.environ.get("HTTPS_PROXY"): cmd[1:1] = ["--proxy", os.environ["HTTPS_PROXY"]]
-        subprocess.run(cmd, check=True)
+        for attempt in range(4):  # the TTS service occasionally returns no audio; retry
+            r = subprocess.run(cmd, capture_output=True)
+            if r.returncode == 0 and os.path.getsize(mp3) > 2000: break
+            if os.path.exists(mp3): os.remove(mp3)
+            time.sleep(2)
+        else:
+            raise RuntimeError(f"TTS failed for {key}: {r.stderr.decode()[-300:]}")
     raw = subprocess.run(["ffmpeg", "-loglevel", "error", "-i", mp3, "-f", "s16le", "-ac", "1", "-ar", "44100", "-"],
                          capture_output=True, check=True).stdout
     a = np.frombuffer(raw, np.int16).astype(np.float32) / 32768
@@ -180,7 +229,7 @@ CLIPS, T = {}, {}
 cur = 0.2
 for key, text in LINES:
     if key in SCENE_START: cur += 0.35
-    if key == "brand": cur += 0.7  # let the notification banners land
+    if key == "brand": cur += 1.4 if LANG == "en" else 0.7  # let the notification banners land
     a = tts(key, text); CLIPS[key] = a; T[key] = (cur, cur + len(a) / 44100)
     cur = T[key][1] + 0.15
 DUR = cur + 1.2
@@ -294,6 +343,9 @@ BANNERS_SPEC = [(_h + .3, "Setup baru: GOLD SELL", "M15  \u2022  Entry, SL & TP 
                 (_h + .9, "Get ready: BITCOIN", "Harga hampir ke zon, setup mungkin datang"),
                 (_h + 1.5, "Amaran berita USD", "30 minit sebelum berita impak tinggi")]
 DINGS = [b[0] for b in BANNERS_SPEC]
+COUNT_LEN = 1.8
+_p0, _p1 = T["proof"]
+COUNTS = [_p0 + (_p1 - _p0) * f for f in (.22, .5, .72)]  # when each stat starts counting
 
 BANNERS = BANNERS_SPEC
 ICON_SMALL = TRAXA.resize((84, 84), Image.LANCZOS)
@@ -307,9 +359,9 @@ def notif_banner(img, y, title, body, t, t0, out):
     paste_alpha(img, ICON_SMALL, (100, yy + 48), a)
     d2 = ImageDraw.Draw(lay2 := Image.new("RGBA", (W, H), (0, 0, 0, 0)))
     d2.text((210, yy + 28), "TRAXA", font=font("SemiBold", 32), fill=MUTED + (int(255 * a),))
-    d2.text((W - 230, yy + 28), "sekarang", font=font("Regular", 30), fill=MUTED + (int(255 * a),))
-    d2.text((210, yy + 70), title, font=font("Bold", 44), fill=WHITE + (int(255 * a),))
-    d2.text((210, yy + 124), body, font=font("Regular", 34), fill=(210, 205, 195, int(255 * a)))
+    d2.text((W - 230, yy + 28), tr("sekarang"), font=font("Regular", 30), fill=MUTED + (int(255 * a),))
+    d2.text((210, yy + 70), tr(title), font=font("Bold", 44), fill=WHITE + (int(255 * a),))
+    d2.text((210, yy + 124), tr(body), font=font("Regular", 34), fill=(210, 205, 195, int(255 * a)))
     img.alpha_composite(lay2)
 
 def frame(n):
@@ -357,7 +409,7 @@ def frame(n):
         logo(img, TRAXA, W / 2, 360, 200 * back(seg(t, SP, SP + .6)), out, glow=GOLD)
         ctext(img, 510, "Baru 3 minggu dilancarkan", font("Bold", 64), WHITE, ease(seg(t, SP, SP + .5)) * out)
         p0, p1_ = T["proof"]; dur = p1_ - p0
-        stats = [(5000, "+", "TRADER", p0 + dur * .22), (38, "", "NEGARA", p0 + dur * .5), (300, "+", "FEEDBACK", p0 + dur * .72)]
+        stats = [(5000, "+", "TRADER", COUNTS[0]), (38, "", "NEGARA", COUNTS[1]), (300, "+", "FEEDBACK", COUNTS[2])]
         for i, (val, suf, label, st) in enumerate(stats):
             a = ease(seg(t, st - .3, st + .1)) * out
             if a <= 0: continue
@@ -365,8 +417,15 @@ def frame(n):
             lay = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(lay)
             d.rounded_rectangle([x0, y0, x0 + 860, y0 + 250], 40, fill=(255, 255, 255, int(16 * a)), outline=GOLD + (int(190 * a),), width=3)
             img.alpha_composite(lay)
-            v = int(round(val * ease(seg(t, st - .3, st + .9))))
-            ti = text_img(f"{v:,}{suf}", font("Black", 130), "gold")
+            c0, c1 = st - .3, st + COUNT_LEN
+            v = int(round(val * (1 - (1 - seg(t, c0, c1)) ** 4)))  # fast start, slow landing
+            q = seg(t, c1, c1 + .35); pop = 1 + .14 * math.sin(math.pi * q)
+            if 0 < q < 1:  # flash the card when the number lands
+                fl = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+                ImageDraw.Draw(fl).rounded_rectangle([x0, y0, x0 + 860, y0 + 250], 40, outline=GOLD_HI + (int(255 * math.sin(math.pi * q)),), width=10)
+                img.alpha_composite(fl.filter(ImageFilter.GaussianBlur(12)))
+            ti = text_img(f"{v:,}{suf if seg(t, c0, c1) >= 1 else ''}", font("Black", 130), "gold")
+            if pop != 1: ti = ti.resize((int(ti.width * pop), int(ti.height * pop)), Image.LANCZOS)
             paste_alpha(img, ti, (x0 + 50, y0 + 125 - ti.height / 2), a)
             li = text_img(label, font("Bold", 46), WHITE)
             paste_alpha(img, li, (x0 + 810 - li.width, y0 + 125 - li.height / 2), a)
@@ -419,6 +478,7 @@ def frame(n):
         logo(img, IFANG, 140, 130, 190, 0.92)
         d.text((250, 112), "t.me/iFangFx", font=font("SemiBold", 38), fill=WHITE + (200,))
     for i, s in enumerate(["Trading melibatkan risiko. Hanya labur apa yang", "anda sanggup rugi. Bukan nasihat kewangan."]):
+        s = tr(s)
         f = font("Regular", 32); w = d.textlength(s, font=f)
         d.text(((W - w) / 2, 1770 + i * 44), s, font=f, fill=MUTED + (220,))
     d.rectangle([0, H - 10, int(W * t / DUR), H], fill=GOLD + (230,))
@@ -482,6 +542,14 @@ def music(path):
     for d0 in DINGS:  # notification chime
         tt, e = env(int(.5 * sr), 9)
         add(d0, (np.sin(2 * np.pi * 1318.5 * tt) + .6 * np.sin(2 * np.pi * 1975.5 * tt)) * e * np.minimum(1, tt * 400), 0.35)
+    for st in COUNTS:  # counter ticks that slow down, then a chime
+        c0, c1 = st - .3, st + COUNT_LEN
+        for k in range(28):  # one tick per equal step of the displayed number
+            p = 1 - (1 - k / 28) ** .25
+            tt, e = env(int(.012 * sr), 400)
+            add(c0 + (c1 - c0) * p, np.sin(2 * np.pi * 2600 * tt) * e, 0.12)
+        tt, e = env(int(.6 * sr), 7)
+        add(c1, (np.sin(2 * np.pi * 1568 * tt) + .5 * np.sin(2 * np.pi * 2349 * tt)) * e * np.minimum(1, tt * 400), 0.3)
     for c in CUTS:  # riser whoosh into each scene change
         L = int(.6 * sr); tt = np.arange(L) / sr
         add(c - .6, rng.standard_normal(L) * (tt / .6) ** 2, 0.22)
