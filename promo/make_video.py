@@ -365,23 +365,39 @@ def phone_layer(scr, ys, boxes=(), sheen=0.0):
         L.alpha_composite(g, (ox, oy))
     return L
 
-def phone3d(img, scr, ys, pin, pout, t, a, boxes=()):
-    """Phone swings in from the right (rotating on Y), floats, then swings out to the left."""
-    ry = 78 * (1 - pin) - 78 * ease(pout) + 5 * math.sin(t * 1.1)
-    rx = 4 * math.sin(t * .8 + 1)
+def phone3d(img, scr, ys, pin, pout, t, a, boxes=(), zoom=None):
+    """Phone swings in from the right (rotating on Y), floats, then swings out to the left.
+    zoom = (x, y, amount, z): push the camera towards screen point (x, y) in 921-px screenshot coords."""
+    zp = zoom[2] if zoom else 0.0
+    ry = (78 * (1 - pin) - 78 * ease(pout)) + 5 * math.sin(t * 1.1) * (1 - .8 * zp)
+    rx = 4 * math.sin(t * .8 + 1) * (1 - .8 * zp)
     cx = W / 2 + 520 * (1 - pin) - 520 * ease(pout)
-    cy = 450 + PH / 2 + 20 * math.sin(t * 1.3)
+    cy = 450 + PH / 2 + 20 * math.sin(t * 1.3) * (1 - zp)
     L = phone_layer(scr, ys, boxes, sheen=ry / 90)
-    warp3d(img, L, cx, cy, ry=ry, rx=rx, a=a)
+    z = 1.0
+    if zp > 0:
+        sx, sy, _, zmax = zoom; z = 1 + (zmax - 1) * zp
+        dxp = M3 + BZ + sx * SC - L.width / 2; dyp = M3 + BZ + sy * SC - ys - L.height / 2
+        cx = (1 - zp) * cx + zp * (W / 2 - dxp * z); cy = (1 - zp) * cy + zp * (1000 - dyp * z)
+    warp3d(img, L, cx, cy, ry=ry, rx=rx, a=a, scale=z)
+
+# shot index -> (x, y in 921-px coords, start offset, end offset, max zoom)
+ZOOMS = {0: (460, 500, 1.2, 3.4, 1.55), 1: (560, 1120, 1.4, 4.4, 1.75), 2: (460, 800, 1.0, 3.0, 1.35), 3: (460, 760, .9, 2.6, 1.4)}
 
 def phone_shot(img, i, t):
     name, title, sub, y0, pan, boxes = SHOTS[i]
     s0, s1 = SHOT_T[i], SHOT_T[i + 1]
+    zm = None
+    if i in ZOOMS:
+        zx, zy, z0, z1, zmax = ZOOMS[i]; z1 = min(z1, s1 - s0 - .6)
+        zp = ease(seg(t, s0 + z0, s0 + z0 + .5)) * (1 - ease(seg(t, s0 + z1 - .45, s0 + z1)))
+        if zp > 0: zm = (zx, zy, zp, zmax)
     pin, pout = ease(seg(t, s0, s0 + .6)), seg(t, s1 - .4, s1)
     a = min(1, pin * 1.5) * (1 - pout ** 3)
     dx = int(W * (1 - pin)) - int(W * ease(pout))
-    ctext(img, 250, title, font("Black", 64), "gold", pin * (1 - pout), dx=dx, glow=GOLD)
-    ctext(img, 345, sub, font("Medium", 44), WHITE, ease(seg(t, s0 + .2, s0 + .6)) * (1 - pout), dx=dx)
+    tf = 1 - (zm[2] if zm else 0)
+    ctext(img, 250, title, font("Black", 64), "gold", pin * (1 - pout) * tf, dx=dx, glow=GOLD)
+    ctext(img, 345, sub, font("Medium", 44), WHITE, ease(seg(t, s0 + .2, s0 + .6)) * (1 - pout) * tf, dx=dx)
     if isinstance(name, str):
         src = SCREENS[name]
     else:  # play the recording slice across the shot
@@ -394,15 +410,19 @@ def phone_shot(img, i, t):
     for (x0, by0, x1, by1, off) in boxes:
         ha = ease(seg(t, s0 + off, s0 + off + .4)) * (1 - pout)
         if ha > 0: bx.append((x0, by0, x1, by1, ha * (0.75 + 0.25 * math.sin((t - s0 - off) * 6))))
-    phone3d(img, src, ys, pin, pout, t, a, bx)
+    phone3d(img, src, ys, pin, pout, t, a, bx, zoom=zm)
 
 def at(k, off=0): return T[k][0] + off
+_bar = 60 / 140 * 4
+KICKS = [bi * _bar + st * _bar / 16 for bi in range(int(DUR / _bar) + 1) for st in (0, 7, 10) if bi * _bar >= S2 - 1e-6]
 _h = T["hook2"][0]
 BANNERS_SPEC = [(_h + .3, "Setup baru: GOLD SELL", "M15  \u2022  Entry, SL & TP siap dengan reason"),
                 (_h + .9, "Get ready: BITCOIN", "Harga hampir ke zon, setup mungkin datang"),
                 (_h + 1.5, "Amaran berita USD", "30 minit sebelum berita impak tinggi")]
 DINGS = [b[0] for b in BANNERS_SPEC]
 COUNT_LEN = 1.8
+_c0, _c1 = T["code"]
+CODE_STOPS = [_c0 + (_c1 - _c0) * (i + .7) / len(CODE) for i in range(len(CODE))]
 _p0, _p1 = T["proof"]
 COUNTS = [_p0 + (_p1 - _p0) * f for f in (.22, .5, .72)]  # when each stat starts counting
 
@@ -429,6 +449,52 @@ def notif_banner(img, y, title, body, t, t0, out):
     q = back(p)
     warp3d(img, L, W / 2, y + bh / 2 - 160 * (1 - q), rx=-75 * (1 - q) + 3 * math.sin(t * 1.5 + y),
            ry=4 * math.sin(t * 1.1 + y / 200), scale=0.75 + 0.25 * q, a=a)
+
+# ---------- TikTok-style word-by-word captions ----------
+CAP_FIX = {"Z. I. Q. F. X.": "ZIQFX", "Z, I, Q, F, X.": "ZIQFX", "i-Fang F X": "iFANG FX"}
+def _caption_chunks():
+    chunks = []
+    for key, text in LINES:
+        for a_, b_ in CAP_FIX.items(): text = text.replace(a_, b_)
+        words = [w.strip(".,:") for w in text.split()]
+        words = [w for w in words if w]
+        t0, t1 = T[key]; wts = [len(w) + 2 for w in words]; tot = sum(wts); cur_ = t0; timed = []
+        for w, wt in zip(words, wts):
+            d_ = (t1 - t0) * wt / tot; timed.append((w, cur_, cur_ + d_)); cur_ += d_
+        group = []
+        for item in timed:
+            if group and len(" ".join(g[0] for g in group + [item])) > 20:
+                chunks.append(group); group = []
+            group.append(item)
+        if group: chunks.append(group)
+    out = []
+    for i, g in enumerate(chunks):  # hold each chunk until the next one starts (if the gap is short)
+        end = g[-1][2]; nxt = chunks[i + 1][0][1] if i + 1 < len(chunks) else end + .3
+        out.append((g, g[0][1] - .05, nxt if nxt - end < .4 else end + .2))
+    return out
+CAPS = _caption_chunks()
+_band = np.zeros((H, 1), np.float32)
+_band[:240, 0] = np.linspace(.8, 0, 240) ** 1.5
+_band[1560:, 0] = np.linspace(0, .9, H - 1560) ** .8
+EDGE_BANDS = Image.fromarray(np.dstack([np.zeros((H, W, 3), np.uint8),
+                                       np.repeat((_band * 255).astype(np.uint8), W, axis=1)]), "RGBA")
+
+def captions(img, t):
+    for g, c0, c1 in CAPS:
+        if not c0 <= t < c1: continue
+        pop = .85 + .15 * back(seg(t, c0, c0 + .18))
+        f = font("Black", 58); imgs = []
+        for w, w0, w1 in g:
+            on = w0 <= t < w1 + .05
+            asc, desc = f.getmetrics(); st_ = 7
+            ti = Image.new("RGBA", (int(f.getlength(w)) + 2 * st_ + 4, asc + desc + 2 * st_), (0, 0, 0, 0))
+            ImageDraw.Draw(ti).text((st_ + 2, st_), w, font=f, fill=GOLD_HI if on else WHITE, stroke_width=st_, stroke_fill=(0, 0, 0))
+            sc_ = pop * (1.12 if on else 1.0)
+            imgs.append(ti.resize((int(ti.width * sc_), int(ti.height * sc_)), Image.LANCZOS))
+        gap = 18; tw = sum(i_.width for i_ in imgs) + gap * (len(imgs) - 1); x = (W - tw) / 2
+        for i_ in imgs:
+            img.alpha_composite(i_, (int(x), int(1688 - i_.height / 2))); x += i_.width + gap
+        return
 
 def frame(n):
     t = n / FPS
@@ -515,8 +581,19 @@ def frame(n):
             img.alpha_composite(g.filter(ImageFilter.GaussianBlur(40)))
             m = Image.new("L", (bw, bh), 0); ImageDraw.Draw(m).rounded_rectangle([0, 0, bw - 1, bh - 1], 54, fill=int(255 * a2))
             img.paste(GOLD_GRAD.resize((bw, bh)), (box[0], box[1]), m)
-            ti = text_img(CODE, font("Black", int(180 * pulse)), BLACK)
-            paste_alpha(img, ti, (cx - ti.width / 2, cy - ti.height / 2), a2)
+            fnt = font("Black", int(180 * pulse))
+            slots = [text_img(ch, fnt, BLACK) for ch in CODE]
+            tw = sum(sl.width for sl in slots); hh = max(sl.height for sl in slots)
+            x = cx - tw / 2; fr = int(t * FPS)
+            for i, (ch, sl) in enumerate(zip(CODE, slots)):
+                if t < CODE_STOPS[i]:  # still spinning: random glyph, scrolling down
+                    rnd = random.Random(fr * 31 + i * 7).choice("ABCDEFGHJKLMNPQRSTUVWXYZ0123456789")
+                    gi = text_img(rnd, fnt, BLACK); off = ((t * 14 + i * .37) % 1 - .5) * 70
+                    paste_alpha(img, gi, (x + (sl.width - gi.width) / 2, cy - hh / 2 + off), a2 * .55)
+                else:
+                    bounce = -22 * math.sin(math.pi * seg(t, CODE_STOPS[i], CODE_STOPS[i] + .22))
+                    paste_alpha(img, sl, (x, cy - hh / 2 + bounce), a2)
+                x += sl.width
             shine(img, box, ((t - at("code")) % 1.6) / 1.0, 54)
         a3 = ease(seg(t, at("cta2") - .2, at("cta2") + .3)) * out
         ctext(img, 1140, "Link pendaftaran:", font("Medium", 48), MUTED, a3)
@@ -542,6 +619,15 @@ def frame(n):
         ctext(img, 1212, "t.me/iFangFx", font("Black", 72), WHITE, a)
         ctext(img, 1400, "Follow untuk tips & update trading", font("Medium", 48), MUTED, ease(seg(t, at("outro", 1.6), at("outro", 2.1))))
         ctext(img, 1480, "Kod jemputan: ZIQFX", font("Bold", 56), "gold", ease(seg(t, at("risk") - .2, at("risk", .3))))
+
+    # --- zoom punch on each kick ---
+    past = [k for k in KICKS if 0 <= t - k < .35]
+    if past:
+        z = 1 + .022 * math.exp(-(t - past[-1]) * 14)
+        big = img.resize((int(W * z), int(H * z)), Image.BILINEAR)
+        img = big.crop(((big.width - W) // 2, (big.height - H) // 2, (big.width - W) // 2 + W, (big.height - H) // 2 + H))
+    img.alpha_composite(EDGE_BANDS)
+    captions(img, t)
 
     # --- persistent overlays ---
     ov = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(ov)
@@ -621,6 +707,12 @@ def music(path):
             add(c0 + (c1 - c0) * p, np.sin(2 * np.pi * 2600 * tt) * e, 0.12)
         tt, e = env(int(.6 * sr), 7)
         add(c1, (np.sin(2 * np.pi * 1568 * tt) + .5 * np.sin(2 * np.pi * 2349 * tt)) * e * np.minimum(1, tt * 400), 0.3)
+    for i, cs in enumerate(CODE_STOPS):  # slot machine: a click per letter, chime on the last
+        tt, e = env(int(.03 * sr), 160)
+        add(cs, np.sin(2 * np.pi * 1900 * tt) * e, 0.22)
+        if i == len(CODE_STOPS) - 1:
+            tt, e = env(int(.8 * sr), 5)
+            add(cs + .05, (np.sin(2 * np.pi * 1318.5 * tt) + .6 * np.sin(2 * np.pi * 1975.5 * tt) + .4 * np.sin(2 * np.pi * 2637 * tt)) * e * np.minimum(1, tt * 400), 0.3)
     for c in CUTS:  # riser whoosh into each scene change
         L = int(.6 * sr); tt = np.arange(L) / sr
         add(c - .6, rng.standard_normal(L) * (tt / .6) ** 2, 0.22)
