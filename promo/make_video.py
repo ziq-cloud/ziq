@@ -150,14 +150,16 @@ LINES = [
     ("p1", "Ada tiga pair utama: Gold, Bitcoin dan Oil, dengan harga live."),
     ("p2", "Setiap setup ada entry, stop loss dan take profit, siap dengan reason kenapa setup itu dihantar."),
     ("p3", "Setup baru, keputusan, amaran berita dan get ready alert, semua terus masuk notifikasi telefon."),
-    ("p4", "Dan analisis trend lengkap, dari M5 sampai D1."),
+    ("p4", "Support, resistance dan key level untuk setiap timeframe."),
+    ("p5", "Ada juga kelas edukasi, dari market structure sampai breakout."),
+    ("proof", "Baru tiga minggu dilancarkan, dah lebih lima ribu trader dari tiga puluh lapan negara, dengan lebih tiga ratus feedback."),
     ("cta1", "Daftar sekarang, guna kod jemputan saya."),
     ("code", "Z, I, Q, F, X."),
     ("cta2", "Link pendaftaran ada di bio dan pinned."),
     ("outro", "Join channel Telegram, i-Fang F X, untuk tips dan update trading."),
     ("risk", "Ingat, trading ada risiko. Labur dengan bijak."),
 ]
-SCENE_START = {"brand", "p1", "p2", "p3", "p4", "cta1", "outro"}  # a new scene begins with these lines
+SCENE_START = {"brand", "p1", "p2", "p3", "p4", "p5", "proof", "cta1", "outro"}  # a new scene begins with these lines
 
 def tts(key, text):
     os.makedirs(VDIR, exist_ok=True)
@@ -184,8 +186,9 @@ DUR = cur + 1.2
 N = int(FPS * DUR)
 S1 = 0
 S2, S3, S4, S5 = (T[k][0] - 0.25 for k in ("brand", "p1", "cta1", "outro"))
-SHOT_T = [T[f"p{i}"][0] - 0.25 for i in range(1, 5)] + [S4]
-CUTS = [S2, S4, S5]
+SP = T["proof"][0] - 0.25
+SHOT_T = [T[f"p{i}"][0] - 0.25 for i in range(1, 6)] + [SP]
+CUTS = [S2, SP, S4, S5]
 
 # ---------- app screenshots shown inside a phone mockup ----------
 # boxes are in 921-px-wide screenshot coordinates: (x0, y0, x1, y1, appear-after-seconds)
@@ -196,8 +199,10 @@ SHOTS = [
      [(72, 630, 848, 706, .8), (372, 1040, 700, 1625, 3.0)]),
     ("notif", "NOTIFIKASI SETIAP SIGNAL", "Setup baru, keputusan, berita & get ready alert", 130, 0,
      [(58, 488, 863, 1108, .6), (58, 1197, 863, 1640, 3.4)]),
-    ("analysis", "ANALISIS MULTI-TIMEFRAME", "Trend dari M5 hingga D1", 130, 120,
-     [(75, 742, 848, 1000, .6), (108, 1345, 812, 1760, 1.8)]),
+    ("levels", "SUPPORT & RESISTANCE", "Key level untuk setiap timeframe", 130, 120,
+     [(72, 490, 848, 1035, .6), (75, 1130, 848, 1405, 2.4)]),
+    ("edu", "KELAS EDUKASI", "Market structure hingga breakout", 130, 80,
+     [(35, 690, 886, 1765, .6)]),
 ]
 PW, PH, BZ = 620, 1180, 16  # phone screen size and bezel
 SC = PW / 921
@@ -298,9 +303,29 @@ def frame(n):
         ctext(img, 1320, "Signal trading terus di telefon anda", font("Medium", 50), MUTED, win(t, at("brand", 1.4), S3, .5, .4))
 
     # --- Scene 3: app tour ---
-    if S3 <= t < S4:
+    if S3 <= t < SP:
         for i in range(len(SHOTS)):
             if SHOT_T[i] <= t < SHOT_T[i + 1]: phone_shot(img, i, t)
+
+    # --- Scene 3b: social proof counters ---
+    if SP <= t < S4:
+        out = 1 - seg(t, S4 - .4, S4)
+        logo(img, TRAXA, W / 2, 360, 200 * back(seg(t, SP, SP + .6)), out, glow=GOLD)
+        ctext(img, 510, "Baru 3 minggu dilancarkan", font("Bold", 64), WHITE, ease(seg(t, SP, SP + .5)) * out)
+        p0, p1_ = T["proof"]; dur = p1_ - p0
+        stats = [(5000, "+", "TRADER", p0 + dur * .22), (38, "", "NEGARA", p0 + dur * .5), (300, "+", "FEEDBACK", p0 + dur * .72)]
+        for i, (val, suf, label, st) in enumerate(stats):
+            a = ease(seg(t, st - .3, st + .1)) * out
+            if a <= 0: continue
+            y0 = 660 + i * 300; x0 = 110 + int(150 * (1 - a))
+            lay = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(lay)
+            d.rounded_rectangle([x0, y0, x0 + 860, y0 + 250], 40, fill=(255, 255, 255, int(16 * a)), outline=GOLD + (int(190 * a),), width=3)
+            img.alpha_composite(lay)
+            v = int(round(val * ease(seg(t, st - .3, st + .9))))
+            ti = text_img(f"{v:,}{suf}", font("Black", 130), "gold")
+            paste_alpha(img, ti, (x0 + 50, y0 + 125 - ti.height / 2), a)
+            li = text_img(label, font("Bold", 46), WHITE)
+            paste_alpha(img, li, (x0 + 810 - li.width, y0 + 125 - li.height / 2), a)
 
     # --- Scene 4: CTA with code ---
     if S4 <= t < S5:
