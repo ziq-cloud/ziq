@@ -151,6 +151,7 @@ LINES = [
     ("p2", "Setiap setup ada entry, stop loss dan take profit, siap dengan reason kenapa setup itu dihantar."),
     ("p3", "Setup baru, keputusan, amaran berita dan get ready alert, semua terus masuk notifikasi telefon."),
     ("p4", "Support, resistance dan key level untuk setiap timeframe."),
+    ("pn", "Kalendar berita USD dan fundamental emas pun ada dalam app."),
     ("p5", "Ada juga kelas edukasi, dari market structure sampai breakout."),
     ("proof", "Baru tiga minggu dilancarkan, dah lebih lima ribu trader dari tiga puluh lapan negara, dengan lebih tiga ratus feedback."),
     ("cta1", "Daftar sekarang, guna kod jemputan saya."),
@@ -159,7 +160,7 @@ LINES = [
     ("outro", "Join channel Telegram, i-Fang F X, untuk tips dan update trading."),
     ("risk", "Ingat, trading ada risiko. Labur dengan bijak."),
 ]
-SCENE_START = {"brand", "p1", "p2", "p3", "p4", "p5", "proof", "cta1", "outro"}  # a new scene begins with these lines
+SCENE_START = {"brand", "p1", "p2", "p3", "p4", "pn", "p5", "proof", "cta1", "outro"}  # a new scene begins with these lines
 
 def tts(key, text):
     os.makedirs(VDIR, exist_ok=True)
@@ -187,27 +188,27 @@ N = int(FPS * DUR)
 S1 = 0
 S2, S3, S4, S5 = (T[k][0] - 0.25 for k in ("brand", "p1", "cta1", "outro"))
 SP = T["proof"][0] - 0.25
-SHOT_T = [T[f"p{i}"][0] - 0.25 for i in range(1, 6)] + [SP]
+SHOT_T = [T[k][0] - 0.25 for k in ("p1", "p2", "p3", "p4", "pn", "p5")] + [SP]
 CUTS = [S2, SP, S4, S5]
 
 # ---------- app screenshots shown inside a phone mockup ----------
 # boxes are in 921-px-wide screenshot coordinates: (x0, y0, x1, y1, appear-after-seconds)
+# source is a screenshot name, or ("rec", file, start, end) for a slice of a screen recording
 SHOTS = [
-    ("home", "3 PAIR UTAMA", "Gold  \u2022  Bitcoin  \u2022  Oil  \u2014  harga live", 130, 60,
-     [(35, 325, 886, 690, .6)]),
-    ("chart", "REASON SETIAP ENTRY", "Entry, SL & TP siap dengan sebab", 130, 0,
-     [(72, 630, 848, 706, .8), (372, 1040, 700, 1625, 3.0)]),
+    (("rec", "rec3.mp4", 0.0, 5.0), "3 PAIR UTAMA", "Gold  \u2022  Bitcoin  \u2022  Oil  \u2014  harga live", 130, 0, []),
+    (("rec", "rec3.mp4", 5.0, 11.0), "REASON SETIAP ENTRY", "Entry, SL & TP siap dengan sebab", 130, 0, []),
     ("notif", "NOTIFIKASI SETIAP SIGNAL", "Setup baru, keputusan, berita & get ready alert", 130, 0,
      [(58, 488, 863, 1108, .6), (58, 1197, 863, 1640, 3.4)]),
     ("levels", "SUPPORT & RESISTANCE", "Key level untuk setiap timeframe", 130, 120,
      [(72, 490, 848, 1035, .6), (75, 1130, 848, 1405, 2.4)]),
-    ("edu", "KELAS EDUKASI", "Market structure hingga breakout", 130, 80,
-     [(35, 690, 886, 1765, .6)]),
+    (("rec", "rec4.mp4", 4.3, 10.4), "BERITA & FUNDAMENTAL", "Kalendar berita USD terus dalam app", 130, 0, []),
+    (("rec", "rec6.mp4", 0.0, 4.3), "KELAS EDUKASI", "Market structure hingga breakout", 130, 0, []),
 ]
 PW, PH, BZ = 620, 1180, 16  # phone screen size and bezel
 SC = PW / 921
 SCREENS = {}
 for name, *_ in SHOTS:
+    if not isinstance(name, str): continue
     im = Image.open(os.path.join(HERE, f"assets/screens/{name}.png")).convert("RGB")
     SCREENS[name] = im.resize((PW, int(im.height * PW / im.width)), Image.LANCZOS)
 SCREEN_MASK = Image.new("L", (PW, PH), 0); ImageDraw.Draw(SCREEN_MASK).rounded_rectangle([0, 0, PW - 1, PH - 1], 58, fill=255)
@@ -218,11 +219,11 @@ ImageDraw.Draw(PHONE_GLOW).rounded_rectangle([100, 100, 100 + PHONE.width, 100 +
 PHONE_GLOW = PHONE_GLOW.filter(ImageFilter.GaussianBlur(45))
 
 # ---------- real screen recordings ----------
-def extract(src, dst, vf, dur):
+def extract(src, dst, vf, dur, ss=0.0):
     d = os.path.join(OUT, dst)
     if not os.path.isdir(d) or not os.listdir(d):
         os.makedirs(d, exist_ok=True)
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", os.path.join(HERE, "assets/rec", src), "-t", str(dur),
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(ss), "-i", os.path.join(HERE, "assets/rec", src), "-t", str(dur),
                         "-vf", vf, "-q:v", "3", os.path.join(d, "%04d.jpg")], check=True)
     return sorted(os.path.join(d, f) for f in os.listdir(d))
 REC_INTRO = extract("rec2.mov", "rec_intro", f"fps={FPS},scale={PW}:-2", 4.8)   # splash -> swipe -> globe -> home
@@ -237,6 +238,12 @@ def hide_dot(im):
     a[d2 <= r * r] = np.median(ring, axis=0).astype(np.uint8)
     out = Image.fromarray(a); box = (cx - r - 14, cy - r - 14, cx + r + 14, cy + r + 14)
     out.paste(out.crop(box).filter(ImageFilter.GaussianBlur(6)), box[:2]); return out
+
+REC_SHOTS = {}
+for sh in SHOTS:
+    if not isinstance(sh[0], str):
+        _, f, r0, r1 = sh[0]
+        REC_SHOTS[(f, r0, r1)] = extract(f, f"rec_{f}_{r0}_{r1}", f"fps={FPS},scale={PW}:-2", r1 - r0, ss=r0)
 
 def phone_frame(img, scr, px, py, a, ys=0):
     paste_alpha(img, PHONE_GLOW, (px - BZ - 100, py - BZ - 100), a)
@@ -258,7 +265,13 @@ def phone_shot(img, i, t):
     px = (W - PW) // 2 + dx; py = 450
     paste_alpha(img, PHONE_GLOW, (px - BZ - 100, py - BZ - 100), a)
     paste_alpha(img, PHONE, (px - BZ, py - BZ), a)
-    src = SCREENS[name]
+    if isinstance(name, str):
+        src = SCREENS[name]
+    else:  # play the recording slice across the shot
+        _, f, r0, r1 = name
+        frames = REC_SHOTS[(f, r0, r1)]
+        k = int(seg(t, s0 + .3, s1 - .3) * (len(frames) - 1))
+        src = hide_dot(Image.open(frames[k]).convert("RGB"))
     ys = int(y0 * SC + pan * SC * ease(seg(t, s0 + .5, s1 - .4)))
     ys = min(ys, src.height - PH)
     scr = src.crop((0, ys, PW, ys + PH)).convert("RGBA"); scr.putalpha(SCREEN_MASK.point(lambda v: int(v * a)))
