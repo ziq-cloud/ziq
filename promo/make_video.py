@@ -618,7 +618,7 @@ def frame(n):
             img.alpha_composite(g.filter(ImageFilter.GaussianBlur(40)))
             m = Image.new("L", (bw, bh), 0); ImageDraw.Draw(m).rounded_rectangle([0, 0, bw - 1, bh - 1], 54, fill=int(255 * a2))
             img.paste(GOLD_GRAD.resize((bw, bh)), (box[0], box[1]), m)
-            fnt = font("Black", int(180 * pulse))
+            fnt = font("Black", max(8, int(180 * pulse)))
             slots = [text_img(ch, fnt, BLACK) for ch in CODE]
             tw = sum(sl.width for sl in slots); hh = max(sl.height for sl in slots)
             x = cx - tw / 2; fr = int(t * FPS)
