@@ -192,6 +192,7 @@ def shine(img, box, t, radius):
 
 # ---------- voiceover (Malay neural TTS) + timeline ----------
 LANG = os.environ.get("LANG_VIDEO", "en")  # "en" or "bm"
+AD = os.environ.get("MODE") == "ad"  # paid-ads cut: shorter, no crypto/profit/testimonial content, ad safe zones
 VOICE = os.environ.get("VOICE", "en-US-AndrewNeural" if LANG == "en" else "ms-MY-OsmanNeural")
 EN = {
     "Masih teka-teka": "Still guessing", "bila nak ENTRY?": "your ENTRY?",
@@ -253,6 +254,22 @@ if LANG == "en":
         ("outro", "Join the i-Fang F X Telegram channel for tips and trading updates."),
         ("risk", "Remember, trading involves risk. Trade responsibly."),
     ]
+if AD:
+    LANG = "en"
+    LINES = [
+        ("hook1", "Every setup. Every reason."),
+        ("hook2", "Right on your phone."),
+        ("brand", "Meet TRAXA, a trading analysis app."),
+        ("p2", "Each setup shows the entry, stop loss and take profit levels, plus the reason it was sent."),
+        ("p3", "Get alerts for new setups, market news and key price zones."),
+        ("p5", "And learn the basics with built-in lessons."),
+        ("proof", "Over five thousand traders from thirty-eight countries have joined."),
+        ("cta1", "Sign up with invite code"),
+        ("code", "Z. I. Q. F. X."),
+        ("cta2", "Tap the button below to get started."),
+        ("outro", "Trading involves significant risk of loss."),
+        ("risk", "This is not financial advice."),
+    ]
 SCENE_START = {"brand", "p1", "p2", "p3", "p4", "pn", "p5", "proof", "cta1", "outro"}  # a new scene begins with these lines
 
 def tts(key, text):
@@ -285,9 +302,10 @@ for key, text in LINES:
 DUR = cur + 1.2
 N = int(FPS * DUR)
 S1 = 0
-S2, S3, S4, S5 = (T[k][0] - 0.25 for k in ("brand", "p1", "cta1", "outro"))
+SHOT_KEYS = ("p2", "p3", "p5") if AD else ("p1", "p2", "p3", "p4", "pn", "p5")
+S2, S3, S4, S5 = (T[k][0] - 0.25 for k in ("brand", SHOT_KEYS[0], "cta1", "outro"))
 SP = T["proof"][0] - 0.25
-SHOT_T = [T[k][0] - 0.25 for k in ("p1", "p2", "p3", "p4", "pn", "p5")] + [SP]
+SHOT_T = [T[k][0] - 0.25 for k in SHOT_KEYS] + [SP]
 CUTS = [S2, SP, S4, S5]
 
 # ---------- app screenshots shown inside a phone mockup ----------
@@ -303,7 +321,14 @@ SHOTS = [
     (("rec", "rec4.mp4", 4.3, 10.4), "BERITA & FUNDAMENTAL", "Kalendar berita USD terus dalam app", 130, 0, []),
     (("rec", "rec6.mp4", 0.0, 4.3), "KELAS EDUKASI", "Market structure hingga breakout", 130, 0, []),
 ]
+if AD:
+    SHOTS = [SHOTS[1], SHOTS[2], SHOTS[5]]  # reason, alerts, lessons
+    SHOTS[1] = ("notif", "ALERTS THAT MATTER", "New setups, news & key price zones") + SHOTS[1][3:]
 PW, PH, BZ = 620, 1180, 16  # phone screen size and bezel
+PSC = 0.82 if AD else 1.0      # phone scale (smaller in ads to stay inside the platforms' safe zone)
+PCY = 870 if AD else 450 + 1180 / 2
+CAP_Y = 1450 if AD else 1688
+TITLE_Y, SUB_Y = (215, 300) if AD else (250, 345)
 SC = PW / 921
 SCREENS = {}
 for name, *_ in SHOTS:
@@ -372,17 +397,18 @@ def phone3d(img, scr, ys, pin, pout, t, a, boxes=(), zoom=None):
     ry = (78 * (1 - pin) - 78 * ease(pout)) + 5 * math.sin(t * 1.1) * (1 - .8 * zp)
     rx = 4 * math.sin(t * .8 + 1) * (1 - .8 * zp)
     cx = W / 2 + 520 * (1 - pin) - 520 * ease(pout)
-    cy = 450 + PH / 2 + 20 * math.sin(t * 1.3) * (1 - zp)
+    cy = PCY + 20 * math.sin(t * 1.3) * (1 - zp)
     L = phone_layer(scr, ys, boxes, sheen=ry / 90)
     z = 1.0
     if zp > 0:
         sx, sy, _, zmax = zoom; z = 1 + (zmax - 1) * zp
         dxp = M3 + BZ + sx * SC - L.width / 2; dyp = M3 + BZ + sy * SC - ys - L.height / 2
-        cx = (1 - zp) * cx + zp * (W / 2 - dxp * z); cy = (1 - zp) * cy + zp * (1000 - dyp * z)
-    warp3d(img, L, cx, cy, ry=ry, rx=rx, a=a, scale=z)
+        cx = (1 - zp) * cx + zp * (W / 2 - dxp * z * PSC); cy = (1 - zp) * cy + zp * (PCY + 60 - dyp * z * PSC)
+    warp3d(img, L, cx, cy, ry=ry, rx=rx, a=a, scale=z * PSC)
 
 # shot index -> (x, y in 921-px coords, start offset, end offset, max zoom)
 ZOOMS = {0: (460, 500, 1.2, 3.4, 1.55), 1: (560, 1120, 1.4, 4.4, 1.75), 2: (460, 800, 1.0, 3.0, 1.35), 3: (460, 760, .9, 2.6, 1.4)}
+if AD: ZOOMS = {0: (560, 1120, 1.4, 4.4, 1.6), 1: (460, 800, 1.0, 3.0, 1.3)}
 
 def phone_shot(img, i, t):
     name, title, sub, y0, pan, boxes = SHOTS[i]
@@ -396,8 +422,8 @@ def phone_shot(img, i, t):
     a = min(1, pin * 1.5) * (1 - pout ** 3)
     dx = int(W * (1 - pin)) - int(W * ease(pout))
     tf = 1 - (zm[2] if zm else 0)
-    ctext(img, 250, title, font("Black", 64), "gold", pin * (1 - pout) * tf, dx=dx, glow=GOLD)
-    ctext(img, 345, sub, font("Medium", 44), WHITE, ease(seg(t, s0 + .2, s0 + .6)) * (1 - pout) * tf, dx=dx)
+    ctext(img, TITLE_Y, title, font("Black", 56 if AD else 64), "gold", pin * (1 - pout) * tf, dx=dx, glow=GOLD)
+    ctext(img, SUB_Y, sub, font("Medium", 44), WHITE, ease(seg(t, s0 + .2, s0 + .6)) * (1 - pout) * tf, dx=dx)
     if isinstance(name, str):
         src = SCREENS[name]
     else:  # play the recording slice across the shot
@@ -419,12 +445,16 @@ _h = T["hook2"][0]
 BANNERS_SPEC = [(_h + .3, "Setup baru: GOLD SELL", "M15  \u2022  Entry, SL & TP siap dengan reason"),
                 (_h + .9, "Get ready: BITCOIN", "Harga hampir ke zon, setup mungkin datang"),
                 (_h + 1.5, "Amaran berita USD", "30 minit sebelum berita impak tinggi")]
+if AD:  # no buy/sell calls in the ad
+    BANNERS_SPEC = [(_h + .3, "New setup: GOLD", "M15  \u2022  Entry, SL & TP with the reason"),
+                    (_h + .9, "Get ready: OIL", "Price nearing a key zone"),
+                    (_h + 1.5, "USD news warning", "30 min before high-impact news")]
 DINGS = [b[0] for b in BANNERS_SPEC]
 COUNT_LEN = 1.8
 _c0, _c1 = T["code"]
 CODE_STOPS = [_c0 + (_c1 - _c0) * (i + .7) / len(CODE) for i in range(len(CODE))]
 _p0, _p1 = T["proof"]
-COUNTS = [_p0 + (_p1 - _p0) * f for f in (.22, .5, .72)]  # when each stat starts counting
+COUNTS = [_p0 + (_p1 - _p0) * f for f in ((.12, .5) if AD else (.22, .5, .72))]  # when each stat starts counting
 
 BANNERS = BANNERS_SPEC
 def _ifang_big():
@@ -476,10 +506,12 @@ CAPS = _caption_chunks()
 _band = np.zeros((H, 1), np.float32)
 _band[:240, 0] = np.linspace(.8, 0, 240) ** 1.5
 _band[1560:, 0] = np.linspace(0, .9, H - 1560) ** .8
+if AD: _band[1330:, 0] = np.maximum(_band[1330:, 0], np.linspace(0, .85, H - 1330) ** .8)
 EDGE_BANDS = Image.fromarray(np.dstack([np.zeros((H, W, 3), np.uint8),
                                        np.repeat((_band * 255).astype(np.uint8), W, axis=1)]), "RGBA")
 
 def captions(img, t):
+    if AD and t >= S4: return  # CTA and end card already spell everything out
     for g, c0, c1 in CAPS:
         if not c0 <= t < c1: continue
         pop = .85 + .15 * back(seg(t, c0, c0 + .18))
@@ -493,7 +525,7 @@ def captions(img, t):
             imgs.append(ti.resize((int(ti.width * sc_), int(ti.height * sc_)), Image.LANCZOS))
         gap = 18; tw = sum(i_.width for i_ in imgs) + gap * (len(imgs) - 1); x = (W - tw) / 2
         for i_ in imgs:
-            img.alpha_composite(i_, (int(x), int(1688 - i_.height / 2))); x += i_.width + gap
+            img.alpha_composite(i_, (int(x), int(CAP_Y - i_.height / 2))); x += i_.width + gap
         return
 
 def frame(n):
@@ -509,7 +541,10 @@ def frame(n):
     # --- Scene 1: hook ---
     if t < S2 + .1:
         out = 1 - seg(t, S2 - .3, S2)
-        words = [("Masih teka-teka", 330, "Bold", 92, WHITE, at("hook1") - .1),
+        words = [("Every setup.", 330, "Bold", 100, WHITE, at("hook1") - .1),
+                 ("Every reason.", 450, "Black", 118, "gold", at("hook1", .7)),
+                 ("Right on your phone", 680, "Bold", 60, WHITE, at("hook2") - .1)] if AD else \
+                [("Masih teka-teka", 330, "Bold", 92, WHITE, at("hook1") - .1),
                  ("bila nak ENTRY?", 450, "Black", 118, "gold", at("hook1", .7)),
                  ("Biar signal yang datang kat kau", 680, "Bold", 60, WHITE, at("hook2") - .1)]
         for s_, y, w, sz, col, st in words:
@@ -523,8 +558,8 @@ def frame(n):
     if S2 <= t < S3:
         pin = ease(seg(t, S2, S2 + .6)); pout = seg(t, S3 - .4, S3)
         a = pin * (1 - pout); dx = -int(W * ease(pout))
-        ctext(img, 190, "TRAXA", font("Black", 130), "gold", a, dx=dx, scale=0.7 + 0.3 * back(seg(t, S2, S2 + .6)), glow=GOLD)
-        ctext(img, 350, "Signal trading terus di telefon anda", font("Medium", 46), WHITE, ease(seg(t, S2 + .4, S2 + .8)) * (1 - pout), dx=dx)
+        ctext(img, 215 if AD else 190, "TRAXA", font("Black", 120 if AD else 130), "gold", a, dx=dx, scale=0.7 + 0.3 * back(seg(t, S2, S2 + .6)), glow=GOLD)
+        if not AD: ctext(img, 350, "Signal trading terus di telefon anda", font("Medium", 46), WHITE, ease(seg(t, S2 + .4, S2 + .8)) * (1 - pout), dx=dx)
         rt = min(2.5, max(0, t - S2 - .3) * 0.75)  # stop on the home screen, before the feedback feed
         scr = hide_dot(Image.open(REC_INTRO[int(rt * FPS)]).convert("RGB"))
         phone3d(img, scr, int(130 * SC), pin, ease(pout) * 0 + pout, t, min(1, pin * 1.5) * (1 - pout ** 3))
@@ -537,12 +572,14 @@ def frame(n):
     # --- Scene 3b: social proof counters ---
     if SP <= t < S4:
         out = 1 - seg(t, S4 - .4, S4)
-        k = int((t - SP) * FPS); fb = Image.open(REC_FEED[min(k, len(REC_FEED) - 1)]).convert("RGBA")
-        paste_alpha(img, fb, (0, 0), 0.35 * ease(seg(t, SP, SP + .5)) * out)
+        k = int((t - SP) * FPS)
+        if not AD: fb = Image.open(REC_FEED[min(k, len(REC_FEED) - 1)]).convert("RGBA")
+        if not AD: paste_alpha(img, fb, (0, 0), 0.35 * ease(seg(t, SP, SP + .5)) * out)
         sp = ease(seg(t, SP, SP + 1.2)); logo3d(img, TRAXA, W / 2, 360, 200, out * min(1, sp * 3), -360 * (1 - sp) + 18 * math.sin(t * 1.4), glow=GOLD)
         ctext(img, 510, "Baru 3 minggu dilancarkan", font("Bold", 64), WHITE, ease(seg(t, SP, SP + .5)) * out)
         p0, p1_ = T["proof"]; dur = p1_ - p0
-        stats = [(5000, "+", "TRADER", COUNTS[0]), (38, "", "NEGARA", COUNTS[1]), (300, "+", "FEEDBACK", COUNTS[2])]
+        stats = list(zip([(5000, "+", "TRADER"), (38, "", "NEGARA"), (300, "+", "FEEDBACK")], COUNTS))
+        stats = [(v, su, lb, st) for (v, su, lb), st in stats]
         for i, (val, suf, label, st) in enumerate(stats):
             a = ease(seg(t, st - .3, st + .1)) * out
             if a <= 0: continue
@@ -570,7 +607,7 @@ def frame(n):
         out = 1 - seg(t, S5 - .4, S5)
         sp = ease(seg(t, S4, S4 + 1.0)); logo3d(img, TRAXA, W / 2, 400, 170, out * min(1, sp * 3), 360 * (1 - sp) + 15 * math.sin(t * 1.3))
         ctext(img, 540, "Daftar sekarang", font("Black", 100), WHITE, ease(seg(t, S4, S4 + .4)) * out)
-        ctext(img, 670, "guna kod jemputan saya", font("Medium", 56), MUTED, ease(seg(t, S4 + .2, S4 + .6)) * out)
+        ctext(img, 670, "with invite code" if AD else "guna kod jemputan saya", font("Medium", 56), MUTED, ease(seg(t, S4 + .2, S4 + .6)) * out)
         p = seg(t, at("code") - .35, at("code") + .15); a2 = ease(p) * out
         if a2 > 0:
             pulse = back(p) * (1 + 0.025 * math.sin((t - S4) * 7))
@@ -602,10 +639,27 @@ def frame(n):
             d.rounded_rectangle([70, 1210, W - 70, 1330], 30, fill=(255, 255, 255, int(16 * a3)), outline=GOLD + (int(255 * a3),), width=3)
             img.alpha_composite(lay)
         ctext(img, 1242, LINK, font("Bold", 48), GOLD_HI, a3)
-        ctext(img, 1410, "Link ada di bio / pinned ↑", font("SemiBold", 52), WHITE, ease(seg(t, at("cta2", .9), at("cta2", 1.4))) * out)
+        ctext(img, 1410, "Tap the button below \u2193" if AD else "Link ada di bio / pinned ↑", font("SemiBold", 52), WHITE, ease(seg(t, at("cta2", .9), at("cta2", 1.4))) * out)
+
+    # --- Scene 5 (ads): end card with risk warning ---
+    if AD and t >= S5:
+        sp = ease(seg(t, S5, S5 + 1.0))
+        logo3d(img, TRAXA, W / 2, 420, 220, min(1, sp * 3), 360 * (1 - sp) + 12 * math.sin(t * 1.3), glow=GOLD)
+        ctext(img, 590, "TRAXA", font("Black", 120), "gold", sp, glow=GOLD)
+        ctext(img, 760, "Invite code: ZIQFX", font("Bold", 60), WHITE, ease(seg(t, S5 + .3, S5 + .8)))
+        a = ease(seg(t, S5 + .5, S5 + 1.0))
+        if a > 0:
+            lay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+            ImageDraw.Draw(lay).rounded_rectangle([90, 900, W - 90, 1270], 36, fill=(20, 18, 16, int(230 * a)), outline=RED + (int(220 * a),), width=3)
+            img.alpha_composite(lay)
+        for i, line in enumerate(["RISK WARNING", "Trading involves significant risk of loss.", "Only trade what you can afford to lose.",
+                                  "Not financial advice. Results vary."]):
+            ctext(img, 935 + i * 78 + (0 if i == 0 else 12), line, font("Bold" if i == 0 else "Medium", 46 if i == 0 else 42),
+                  RED if i == 0 else WHITE, a)
+        logo(img, IFANG, W / 2, 1380, 170, ease(seg(t, S5 + .8, S5 + 1.3)))
 
     # --- Scene 5: iFANG FX outro ---
-    if t >= S5:
+    if not AD and t >= S5:
         p = seg(t, S5, S5 + .7)
         sz = IFANG_BIG.size
         warp3d(img, IFANG_BIG, W / 2, 720, ry=-90 * (1 - back(p)) + 8 * math.sin(t * 1.2), rx=4 * math.sin(t * .9),
@@ -631,10 +685,14 @@ def frame(n):
 
     # --- persistent overlays ---
     ov = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(ov)
-    if t < S5:  # channel watermark
+    if AD and t < S5:  # compact risk line at the top, inside the safe zone
+        rl = "Trading involves risk. Not financial advice."
+        f = font("SemiBold", 34); w = d.textlength(rl, font=f)
+        d.text(((W - w) / 2, 140), rl, font=f, fill=(235, 230, 220, 235))
+    if not AD and t < S5:  # channel watermark
         logo(img, IFANG, 140, 130, 190, 0.92)
         d.text((250, 112), "t.me/iFangFx", font=font("SemiBold", 38), fill=WHITE + (200,))
-    for i, s in enumerate(["Trading melibatkan risiko. Hanya labur apa yang", "anda sanggup rugi. Bukan nasihat kewangan."]):
+    for i, s in enumerate([] if AD else ["Trading melibatkan risiko. Hanya labur apa yang", "anda sanggup rugi. Bukan nasihat kewangan."]):
         s = tr(s)
         f = font("Regular", 32); w = d.textlength(s, font=f)
         d.text(((W - w) / 2, 1770 + i * 44), s, font=f, fill=MUTED + (220,))
