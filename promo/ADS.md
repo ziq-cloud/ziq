@@ -9,6 +9,9 @@ Fail: `traxa_ad_male.mp4`, `traxa_ad_female.mp4`, `traxa_ad_no_music.mp4` (9:16,
 | Babak "3 pair" dan sebutan **Bitcoin** dalam suara & teks | Iklan kripto dihadkan / perlu kebenaran khas di TikTok dan Meta |
 | Latar feed "What our traders say" (gambar untung pengguna) dan "300+ feedback" | Testimoni untung = tuntutan keuntungan |
 | Notifikasi "GOLD **SELL**" → "New setup: GOLD" | Elak nampak macam arahan beli/jual (nasihat pelaburan) |
+| Perkataan **buy, sell, take profit, stop loss, SL, TP** dibuang dari suara, sari kata dan teks; diganti dengan "key price levels" | TikTok tidak membenarkan sebutan ini dalam iklan |
+| Label **SELL, SL, TP** dan butang "Sell …" dalam rakaman chart, serta ayat "Buy or Sell" / "TP hits, stop losses" dalam skrin notifikasi **dikaburkan** | Perkataan yang sama kelihatan dalam UI app |
+| Babak chart guna dua bahagian rakaman yang stabil sahaja (M5 dan M30) | Supaya kawasan kabur sentiasa tepat (tiada frame peralihan) |
 | Hook "Still guessing your entry?" → "Every setup. Every reason." | Elak ayat yang menyerang/menganggap keadaan peribadi penonton |
 | "Link in bio / pinned", link Telegram, watermark t.me | Iklan guna butang CTA platform; elak bawa trafik ke Telegram |
 | Babak berita & support/resistance | Pendekkan video ke ~34s (iklan pendek lebih berkesan) |
@@ -18,19 +21,19 @@ Fail: `traxa_ad_male.mp4`, `traxa_ad_female.mp4`, `traxa_ad_no_music.mp4` (9:16,
 ## Teks iklan (primary text)
 
 **EN**
-> Every setup in TRAXA comes with the entry, SL and TP levels, plus the reason it was sent. Alerts for new setups, market news and key price zones, and built-in lessons for beginners.
+> Every setup in TRAXA shows the key price levels to watch, plus the reason it was sent. Alerts for new setups, market news and key price zones, and built-in lessons for beginners.
 > Sign up with invite code ZIQFX.
 > Trading involves significant risk of loss. Not financial advice.
 
 **BM**
-> Setiap setup dalam TRAXA ada paras entry, SL dan TP, siap dengan sebab ia dihantar. Notifikasi untuk setup baru, berita pasaran dan zon harga penting, serta kelas asas untuk pemula.
+> Setiap setup dalam TRAXA tunjuk paras harga penting untuk dipantau, siap dengan sebab ia dihantar. Notifikasi untuk setup baru, berita pasaran dan zon harga penting, serta kelas asas untuk pemula.
 > Daftar dengan kod jemputan ZIQFX.
 > Trading melibatkan risiko kerugian yang tinggi. Bukan nasihat kewangan.
 
 **Headline:** TRAXA – trading analysis app · **Butang CTA:** Learn more / Sign up
 **Landing page:** https://traxatradingapp.com/?invite=ZIQFX
 
-Elakkan dalam caption: "untung", "profit", "pasti", "jamin", "win rate", "passive income", "cepat kaya", "100%", emoji 💰🚀📈 berlebihan.
+Elakkan dalam caption: "buy", "sell", "beli", "jual", "take profit", "stop loss", "TP", "SL", "entry", "untung", "profit", "pasti", "jamin", "win rate", "passive income", "cepat kaya", "100%", emoji 💰🚀📈 berlebihan.
 
 ## PENTING: perkara yang video ini tidak boleh selesaikan
 

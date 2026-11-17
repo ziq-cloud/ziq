@@ -260,7 +260,7 @@ if AD:
         ("hook1", "Every setup. Every reason."),
         ("hook2", "Right on your phone."),
         ("brand", "Meet TRAXA, a trading analysis app."),
-        ("p2", "Each setup shows the entry, stop loss and take profit levels, plus the reason it was sent."),
+        ("p2", "Each setup shows the key price levels to watch, plus the reason it was sent."),
         ("p3", "Get alerts for new setups, market news and key price zones."),
         ("p5", "And learn the basics with built-in lessons."),
         ("proof", "Over five thousand traders from thirty-eight countries have joined."),
@@ -323,6 +323,8 @@ SHOTS = [
 ]
 if AD:
     SHOTS = [SHOTS[1], SHOTS[2], SHOTS[5]]  # reason, alerts, lessons
+    SHOTS[0] = (("recseg", "rec3.mp4", ((5.0, 6.4, "m5"), (9.85, 10.85, "m30"))),
+                "A REASON FOR EVERY SETUP", "Key levels, with the reason why") + SHOTS[0][3:]
     SHOTS[1] = ("notif", "ALERTS THAT MATTER", "New setups, news & key price zones") + SHOTS[1][3:]
 PW, PH, BZ = 620, 1180, 16  # phone screen size and bezel
 PSC = 0.82 if AD else 1.0      # phone scale (smaller in ads to stay inside the platforms' safe zone)
@@ -363,9 +365,28 @@ def hide_dot(im):
     out = Image.fromarray(a); box = (cx - r - 14, cy - r - 14, cx + r + 14, cy + r + 14)
     out.paste(out.crop(box).filter(ImageFilter.GaussianBlur(6)), box[:2]); return out
 
+# areas (921-px coords) showing buy/sell/SL/TP wording, blurred in the ad cut
+TRADE_LABELS = {"m5": [(70, 630, 600, 698), (552, 792, 742, 840), (408, 1033, 528, 1084)],
+                "m30": [(578, 866, 742, 917), (406, 1066, 528, 1119), (562, 1433, 742, 1484)],
+                "notif": [(85, 556, 430, 598), (85, 696, 700, 778)]}
+def hide_labels(im, key, ys=0):
+    for x0, y0, x1, y1 in TRADE_LABELS.get(key, []):
+        b = (int(x0 * SC), int(y0 * SC) - ys, int(x1 * SC), int(y1 * SC) - ys)
+        if b[3] <= 0 or b[1] >= im.height: continue
+        b = (b[0], max(0, b[1]), b[2], min(im.height, b[3]))
+        c = im.crop(b); w_, h_ = c.size
+        c = c.resize((max(1, w_ // 10), max(1, h_ // 10)), Image.BILINEAR).resize((w_, h_), Image.BILINEAR).filter(ImageFilter.GaussianBlur(4))
+        im.paste(c, b[:2])
+    return im
+if AD: SCREENS["notif"] = hide_labels(SCREENS["notif"].copy(), "notif")
+
 REC_SHOTS = {}
 for sh in SHOTS:
-    if not isinstance(sh[0], str):
+    if not isinstance(sh[0], str) and sh[0][0] == "recseg":
+        _, f, segs = sh[0]
+        REC_SHOTS[sh[0]] = [(p, lay) for r0, r1, lay in segs
+                            for p in extract(f, f"rec_{f}_{r0}_{r1}", f"fps={FPS},scale={PW}:-2", r1 - r0, ss=r0)]
+    elif not isinstance(sh[0], str):
         _, f, r0, r1 = sh[0]
         REC_SHOTS[(f, r0, r1)] = extract(f, f"rec_{f}_{r0}_{r1}", f"fps={FPS},scale={PW}:-2", r1 - r0, ss=r0)
 
@@ -426,6 +447,10 @@ def phone_shot(img, i, t):
     ctext(img, SUB_Y, sub, font("Medium", 44), WHITE, ease(seg(t, s0 + .2, s0 + .6)) * (1 - pout) * tf, dx=dx)
     if isinstance(name, str):
         src = SCREENS[name]
+    elif name[0] == "recseg":  # stitched stable segments, labels blurred per layout
+        frames = REC_SHOTS[name]
+        p_, lay = frames[int(seg(t, s0 + .3, s1 - .3) * (len(frames) - 1))]
+        src = hide_labels(hide_dot(Image.open(p_).convert("RGB")), lay)
     else:  # play the recording slice across the shot
         _, f, r0, r1 = name
         frames = REC_SHOTS[(f, r0, r1)]
@@ -446,7 +471,7 @@ BANNERS_SPEC = [(_h + .3, "Setup baru: GOLD SELL", "M15  \u2022  Entry, SL & TP 
                 (_h + .9, "Get ready: BITCOIN", "Harga hampir ke zon, setup mungkin datang"),
                 (_h + 1.5, "Amaran berita USD", "30 minit sebelum berita impak tinggi")]
 if AD:  # no buy/sell calls in the ad
-    BANNERS_SPEC = [(_h + .3, "New setup: GOLD", "M15  \u2022  Entry, SL & TP with the reason"),
+    BANNERS_SPEC = [(_h + .3, "New setup: GOLD", "M15  \u2022  Key levels with the reason"),
                     (_h + .9, "Get ready: OIL", "Price nearing a key zone"),
                     (_h + 1.5, "USD news warning", "30 min before high-impact news")]
 DINGS = [b[0] for b in BANNERS_SPEC]
