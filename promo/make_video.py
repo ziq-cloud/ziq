@@ -192,7 +192,8 @@ def shine(img, box, t, radius):
 
 # ---------- voiceover (Malay neural TTS) + timeline ----------
 LANG = os.environ.get("LANG_VIDEO", "en")  # "en" or "bm"
-AD = os.environ.get("MODE") == "ad"  # paid-ads cut: shorter, no crypto/profit/testimonial content, ad safe zones
+AD = os.environ.get("MODE") == "ad"
+SHORT = os.environ.get("MODE") == "short"  # organic short cut: hook, reason, alerts, proof, CTA, Telegram  # paid-ads cut: shorter, no crypto/profit/testimonial content, ad safe zones
 VOICE = os.environ.get("VOICE", "en-US-AndrewNeural" if LANG == "en" else "ms-MY-OsmanNeural")
 EN = {
     "Masih teka-teka": "Still guessing", "bila nak ENTRY?": "your ENTRY?",
@@ -270,6 +271,8 @@ if AD:
         ("outro", "Trading involves significant risk of loss."),
         ("risk", "This is not financial advice."),
     ]
+if SHORT:
+    LINES = [l for l in LINES if l[0] not in ("p1", "p4", "pn", "p5")]
 SCENE_START = {"brand", "p1", "p2", "p3", "p4", "pn", "p5", "proof", "cta1", "outro"}  # a new scene begins with these lines
 
 def tts(key, text):
@@ -302,7 +305,7 @@ for key, text in LINES:
 DUR = cur + 1.2
 N = int(FPS * DUR)
 S1 = 0
-SHOT_KEYS = ("p2", "p3", "p5") if AD else ("p1", "p2", "p3", "p4", "pn", "p5")
+SHOT_KEYS = ("p2", "p3", "p5") if AD else ("p2", "p3") if SHORT else ("p1", "p2", "p3", "p4", "pn", "p5")
 S2, S3, S4, S5 = (T[k][0] - 0.25 for k in ("brand", SHOT_KEYS[0], "cta1", "outro"))
 SP = T["proof"][0] - 0.25
 SHOT_T = [T[k][0] - 0.25 for k in SHOT_KEYS] + [SP]
@@ -321,6 +324,8 @@ SHOTS = [
     (("rec", "rec4.mp4", 4.3, 10.4), "BERITA & FUNDAMENTAL", "Kalendar berita USD terus dalam app", 130, 0, []),
     (("rec", "rec6.mp4", 0.0, 4.3), "KELAS EDUKASI", "Market structure hingga breakout", 130, 0, []),
 ]
+if SHORT:
+    SHOTS = [SHOTS[1], SHOTS[2]]
 if AD:
     SHOTS = [SHOTS[1], SHOTS[2], SHOTS[5]]  # reason, alerts, lessons
     SHOTS[0] = (("recseg", "rec3.mp4", ((5.0, 6.4, "m5"), (9.85, 10.85, "m30"))),
@@ -430,6 +435,7 @@ def phone3d(img, scr, ys, pin, pout, t, a, boxes=(), zoom=None):
 # shot index -> (x, y in 921-px coords, start offset, end offset, max zoom)
 ZOOMS = {0: (460, 500, 1.2, 3.4, 1.55), 1: (560, 1120, 1.4, 4.4, 1.75), 2: (460, 800, 1.0, 3.0, 1.35), 3: (460, 760, .9, 2.6, 1.4)}
 if AD: ZOOMS = {0: (560, 1120, 1.4, 4.4, 1.6), 1: (460, 800, 1.0, 3.0, 1.3)}
+if SHORT: ZOOMS = {0: ZOOMS[1], 1: ZOOMS[2]}
 
 def phone_shot(img, i, t):
     name, title, sub, y0, pan, boxes = SHOTS[i]
