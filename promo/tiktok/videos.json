@@ -1,0 +1,309 @@
+{
+ "v1_traxa_setup": {
+  "hook": "Dapat setup tapi tak tahu kenapa?",
+  "tag": "TRAXA",
+  "music": "m_traxa",
+  "cta_word": "Nak",
+  "shots": [
+   {
+    "src": "rec3.mp4",
+    "ss": 4.5,
+    "y0": 150,
+    "y1": 450,
+    "w": 1.3
+   },
+   {
+    "src": "levels.png",
+    "y0": 100,
+    "y1": 700
+   },
+   {
+    "src": "rec3.mp4",
+    "ss": 0,
+    "y0": 150,
+    "y1": 400
+   }
+  ],
+  "end_logos": [
+   "traxa_icon.png"
+  ],
+  "end_lines": [
+   [
+    "h",
+    "Cuba TRAXA"
+   ],
+   [
+    "s",
+    "Kod jemputan"
+   ],
+   [
+    "code",
+    "ZIQFX"
+   ],
+   [
+    "s",
+    "Link di bio"
+   ]
+  ]
+ },
+ "v3_traxa_belajar": {
+  "hook": "Nak belajar trading, mula dari sini",
+  "tag": "TRAXA",
+  "music": "m_traxa",
+  "cta_word": "Kod",
+  "shots": [
+   {
+    "src": "rec6.mp4",
+    "ss": 0,
+    "y0": 100,
+    "y1": 650
+   },
+   {
+    "src": "rec5.mp4",
+    "ss": 0,
+    "y0": 100,
+    "y1": 500
+   },
+   {
+    "src": "edu.png",
+    "y0": 100,
+    "y1": 700
+   }
+  ],
+  "end_logos": [
+   "traxa_icon.png"
+  ],
+  "end_lines": [
+   [
+    "h",
+    "Belajar dalam TRAXA"
+   ],
+   [
+    "s",
+    "Kod jemputan"
+   ],
+   [
+    "code",
+    "ZIQFX"
+   ],
+   [
+    "s",
+    "Link di bio"
+   ]
+  ]
+ },
+ "v5_traxa_berita": {
+  "hook": "Kenapa harga emas tiba-tiba lari?",
+  "tag": "TRAXA",
+  "music": "m_traxa",
+  "cta_word": "Daftar",
+  "shots": [
+   {
+    "src": "rec4.mp4",
+    "ss": 0,
+    "y0": 100,
+    "y1": 450
+   },
+   {
+    "src": "notif.png",
+    "y0": 100,
+    "y1": 600
+   },
+   {
+    "src": "rec4.mp4",
+    "ss": 5,
+    "y0": 100,
+    "y1": 600
+   }
+  ],
+  "end_logos": [
+   "traxa_icon.png"
+  ],
+  "end_lines": [
+   [
+    "h",
+    "Jangan terkejut dengan berita"
+   ],
+   [
+    "s",
+    "Kod jemputan"
+   ],
+   [
+    "code",
+    "ZIQFX"
+   ],
+   [
+    "s",
+    "Link di bio"
+   ]
+  ]
+ },
+ "v2_plusmaker_intro": {
+  "hook": "Pernah dengar pasal PlusMaker?",
+  "tag": "PLUSMAKER",
+  "music": "m_plus",
+  "cta_word": "Nak",
+  "shots": [
+   {
+    "src": "s00.png",
+    "y0": 0,
+    "y1": 350
+   },
+   {
+    "src": "s01.png",
+    "y0": 0,
+    "y1": 500
+   },
+   {
+    "src": "s05.png",
+    "y0": 150,
+    "y1": 600
+   },
+   {
+    "src": "s06.png",
+    "y0": 0,
+    "y1": 500
+   },
+   {
+    "src": "s07.png",
+    "y0": 300,
+    "y1": 750
+   }
+  ],
+  "end_logos": [
+   "plusmaker_logo.png"
+  ],
+  "end_lines": [
+   [
+    "h",
+    "Nak jemputan PlusMaker?"
+   ],
+   [
+    "s",
+    "Komen"
+   ],
+   [
+    "code",
+    "PLUS"
+   ],
+   [
+    "s",
+    "plusmaker.club"
+   ]
+  ]
+ },
+ "v4_plusmaker_rank": {
+  "hook": "Trading pun ada level macam game?",
+  "tag": "PLUSMAKER",
+  "music": "m_plus",
+  "cta_word": "Nak",
+  "shots": [
+   {
+    "src": "s14.png",
+    "y0": 300,
+    "y1": 770
+   },
+   {
+    "src": "s16.png",
+    "y0": 200,
+    "y1": 650
+   },
+   {
+    "src": "s13.png",
+    "y0": 0,
+    "y1": 450
+   },
+   {
+    "src": "s09.png",
+    "y0": 0,
+    "y1": 450
+   },
+   {
+    "src": "s18.png",
+    "y0": 0,
+    "y1": 550
+   }
+  ],
+  "end_logos": [
+   "plusmaker_logo.png"
+  ],
+  "end_lines": [
+   [
+    "h",
+    "Nak jemputan PlusMaker?"
+   ],
+   [
+    "s",
+    "Komen"
+   ],
+   [
+    "code",
+    "PLUS"
+   ],
+   [
+    "s",
+    "plusmaker.club"
+   ]
+  ]
+ },
+ "v6_combo": {
+  "hook": "2 tool trading yang aku guna setiap hari",
+  "music": "m_combo",
+  "cta_word": "TRAXA",
+  "shots": [
+   {
+    "src": "rec2.mov",
+    "ss": 0,
+    "y0": 0,
+    "y1": 200,
+    "w": 0.7
+   },
+   {
+    "src": "rec3.mp4",
+    "ss": 4.5,
+    "y0": 150,
+    "y1": 450,
+    "w": 1.0
+   },
+   {
+    "src": "rec4.mp4",
+    "ss": 0,
+    "y0": 100,
+    "y1": 400,
+    "w": 0.55
+   },
+   {
+    "src": "s06.png",
+    "y0": 0,
+    "y1": 500
+   },
+   {
+    "src": "s00.png",
+    "y0": 0,
+    "y1": 350
+   }
+  ],
+  "end_logos": [
+   "traxa_icon.png",
+   "plusmaker_logo.png"
+  ],
+  "end_lines": [
+   [
+    "h",
+    "TRAXA + PlusMaker"
+   ],
+   [
+    "s",
+    "TRAXA · kod jemputan"
+   ],
+   [
+    "code",
+    "ZIQFX"
+   ],
+   [
+    "s",
+    "PlusMaker · komen \"PLUS\""
+   ]
+  ]
+ }
+}
