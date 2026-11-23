@@ -27,7 +27,7 @@ WORK = os.path.join(HERE, "work")
 TTS_DIR = os.path.join(WORK, "tts")
 OUT_DIR = os.path.join(HERE, "out")
 EL_VOICE = "VbhRlZCHaUh9hxeUyRBD"  # Daud M - Deep & Confident Narrator
-EL_MODEL = "eleven_multilingual_v2"
+EL_MODEL = os.environ.get("ZIQ_EL_MODEL", "eleven_flash_v2_5")  # flash = half the credits; set eleven_multilingual_v2 for top quality
 LEAD, GAP = 0.45, 0.22
 SR = 44100
 
@@ -409,8 +409,10 @@ def gen_tts(dry=False):
 
     def el(job):
         p, txt = job
-        body = json.dumps({"text": txt, "model_id": EL_MODEL,
-                           "voice_settings": {"stability": 0.45, "similarity_boost": 0.8, "style": 0.25}})
+        req = {"text": txt, "model_id": EL_MODEL, "voice_settings": {"stability": 0.45, "similarity_boost": 0.8, "style": 0.25}}
+        if "flash" in EL_MODEL or "turbo" in EL_MODEL:
+            req["language_code"] = "ms"
+        body = json.dumps(req)
         for attempt in range(5):
             r = subprocess.run(["curl", "-s", "--max-time", "120", "-o", p, "-w", "%{http_code}",
                                 f"https://api.elevenlabs.io/v1/text-to-speech/{EL_VOICE}?output_format=mp3_44100_128",
