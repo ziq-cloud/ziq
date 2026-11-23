@@ -1,0 +1,18 @@
+# generated outputs
+data/
+charts/
+tts/
+tts_el/
+seg/
+seg2/
+timeline.json
+*.mp4
+*.wav
+list*.txt
+prev_*.png
+p2_*.png
+sheet*.png
+charts_sheet.png
+f*.png
+chk.png
+__pycache__/
