@@ -9,6 +9,7 @@ screenshots are needed.
 | File | Purpose |
 |------|---------|
 | `xau_charts.py` | Fetch XAU/USD candles (M5, M15, M30, H1, H4) from Twelve Data and draw TradingView-style charts into `charts/` |
+| `xau_levels.py` | Per-timeframe summary (EMA20/50 trend, market structure, ATR14, swing highs/lows) from `data/` — basis for the daily outlook |
 | `make.py` | Shared drawing helpers (fonts, text sprites, background, icons) and the original v1 video |
 | `make2.py` | Outlook video generator: narration spec, TTS, scenes, effects, audio mix |
 | `m5.png` … `h4.png` | Fallback screenshots (used only when `charts/` has not been generated, or with `ZIQ_CHARTS=screenshot`) |
