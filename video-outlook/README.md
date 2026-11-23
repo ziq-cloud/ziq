@@ -13,6 +13,8 @@ screenshots are needed.
 | `make.py` | Shared drawing helpers (fonts, text sprites, background, icons) and the original v1 video |
 | `make3.py` | **Main generator**: builds the whole video straight from an outlook text file in the `TEMPLATE_outlook.md` format (parse → ElevenLabs voice → render) |
 | `TEMPLATE_outlook.md` | Official ZIQFX outlook wording/format. Daily outlooks are written in this exact format into `outlooks/YYYY-MM-DD.md` |
+| `make_news.py` | **News video** (fundamental + technical + forecast + scenarios + trading plan) from a file in `NEWS_TEMPLATE.md` format, saved as `news/YYYY-MM-DD.md` |
+| `NEWS_TEMPLATE.md` | Format for high-impact news outlooks. Unknown forecast/previous values are written as `—` (shown as "belum diumumkan") |
 | `make2.py` | Outlook video generator: narration spec, TTS, scenes, effects, audio mix |
 | `m5.png` … `h4.png` | Fallback screenshots (used only when `charts/` has not been generated, or with `ZIQ_CHARTS=screenshot`) |
 
@@ -59,3 +61,14 @@ Notes:
 - ElevenLabs voice: *Daud M – Deep & Confident Narrator* (`VbhRlZCHaUh9hxeUyRBD`), model `eleven_multilingual_v2`.
 - Zone chart framing in `make2.py` (`ZY0`, zone `path` prices) was tuned for the 23 Nov 2026 levels;
   adjust when the price range changes.
+
+## High-impact news video
+
+The USD event calendar comes from the FXMacroData skill in `claude-trading-skills`
+(`skills/fxmacrodata-calendar/scripts/fetch_calendar.py --currency usd --min-tier 1`, host `api.fxmacrodata.com`).
+
+```bash
+python3 make_news.py parse  news/2026-11-25.md
+python3 make_news.py tts    news/2026-11-25.md   # or `dry` + `preview` without voice credits
+python3 make_news.py render news/2026-11-25.md   # -> out/ZIQFX_XAUUSD_News_2026-11-25.mp4
+```
