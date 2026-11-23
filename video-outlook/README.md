@@ -11,6 +11,8 @@ screenshots are needed.
 | `xau_charts.py` | Fetch XAU/USD candles (M5, M15, M30, H1, H4) from Twelve Data and draw TradingView-style charts into `charts/` |
 | `xau_levels.py` | Per-timeframe summary (EMA20/50 trend, market structure, ATR14, swing highs/lows) from `data/` — basis for the daily outlook |
 | `make.py` | Shared drawing helpers (fonts, text sprites, background, icons) and the original v1 video |
+| `make3.py` | **Main generator**: builds the whole video straight from an outlook text file in the `TEMPLATE_outlook.md` format (parse → ElevenLabs voice → render) |
+| `TEMPLATE_outlook.md` | Official ZIQFX outlook wording/format. Daily outlooks are written in this exact format into `outlooks/YYYY-MM-DD.md` |
 | `make2.py` | Outlook video generator: narration spec, TTS, scenes, effects, audio mix |
 | `m5.png` … `h4.png` | Fallback screenshots (used only when `charts/` has not been generated, or with `ZIQ_CHARTS=screenshot`) |
 
@@ -24,7 +26,19 @@ screenshots are needed.
 
 The scripts send the placeholder `proxy-injected`; the session proxy replaces it with the real key.
 
-## Workflow
+## Workflow (from an outlook text file)
+
+```bash
+cd video-outlook
+python3 xau_charts.py all && python3 xau_levels.py      # live charts + trend summary
+python3 make3.py parse  outlooks/2026-11-24.md          # check what will be narrated
+python3 make3.py tts    outlooks/2026-11-24.md          # ElevenLabs Daud M clips (cached per sentence)
+python3 make3.py render outlooks/2026-11-24.md          # -> out/ZIQFX_XAUUSD_Outlook_2026-11-24.mp4
+```
+
+Use `make3.py dry` instead of `tts` to preview frames (`make3.py preview <file> z1a:10`) without spending voice credits.
+
+## Legacy workflow (make2.py, hard-coded 23 Nov text)
 
 ```bash
 cd video-outlook

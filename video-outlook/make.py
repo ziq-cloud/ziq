@@ -292,12 +292,15 @@ def flash(base, t, start=0.0, dur=0.22, col=(255, 240, 200), peak=0.55):
 TOTAL = None  # set later
 
 
+CHROME_RIGHT = "XAUUSD  •  23.11.2026"
+
+
 def chrome(base, T, alpha=1.0):
     d = ImageDraw.Draw(base, "RGBA")
     d.rectangle((0, 0, W, 104), fill=(5, 6, 10, int(200 * alpha)))
     d.line((0, 104, W, 104), fill=rgba(GOLD, 0.5 * alpha), width=2)
     text(base, "ZIQFX", 48, 34, "Black", 40, GOLD, alpha=alpha)
-    text(base, "XAUUSD  •  23.11.2026", W - 48, 40, "SemiBold", 30, GREY, "r", alpha)
+    text(base, CHROME_RIGHT, W - 48, 40, "SemiBold", 30, GREY, "r", alpha)
     # live dot
     pulse = 0.5 + 0.5 * math.sin(T * 5)
     d.ellipse((200, 46, 218, 64), fill=rgba(RED, alpha * (0.5 + 0.5 * pulse)))
