@@ -4,7 +4,7 @@ Usage:
   python3 make_videos.py              # semua topik
   python3 make_videos.py 3 5          # topik #3 dan #5 sahaja
 Env: VOICE (default ElevenLabs "Daud M - Malay Influencer"; nama suara edge-tts seperti ms-MY-OsmanNeural pun boleh),
-     ELEVENLABS_API_KEY, RATE (edge-tts sahaja, default +4%), BRAND (default ZIQFX), JOBS (default 4)
+     ELEVENLABS_API_KEY, RATE (edge-tts sahaja, default +4%), BRAND (default "iFang FX"), JOBS (default 4)
 Output: out/<slug>.mp4 dan out/<slug>.jpg (cover)
 Perlu: ffmpeg, edge-tts (akses rangkaian ke speech.platform.bing.com untuk suara baru).
 """
@@ -24,7 +24,7 @@ OUT = os.path.join(HERE, "out")
 VOICE = os.environ.get("VOICE", "dNnVzcebCLVAswzGKvfO")  # ElevenLabs: Daud M - Malay Influencer
 EL_MODEL = os.environ.get("EL_MODEL", "eleven_multilingual_v2")
 RATE = os.environ.get("RATE", "+4%")
-BRAND = os.environ.get("BRAND", "ZIQFX")
+BRAND = os.environ.get("BRAND", "iFang FX")
 VDIR = os.path.join(HERE, "voice", VOICE)
 N = len(TOPICS)
 
