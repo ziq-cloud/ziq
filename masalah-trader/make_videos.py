@@ -101,7 +101,7 @@ def build_timeline(i, topic):
     """Pulangkan (lines, scenes, audio). lines: list of dict(text, t0, t1, scene, item)."""
     nxt = TOPICS[i + 1]["title"] if i + 1 < N else None
     script = [("hook", None, topic["hook"][1]),
-              ("hook", None, topic.get("intro", f"Ni masalah trader Malaysia, nombor {i + 1}. {topic['title']}."))]
+              ("hook", None, topic.get("intro", f"Ni antara masalah besar trader Malaysia. {topic['title']}."))]
     for si, sec in enumerate(topic["sections"]):
         for ii, (_, nar) in enumerate(sec[2]):
             script.append((f"s{si}", ii, nar))
@@ -249,9 +249,6 @@ class Renderer:
         self.top.alpha_composite(ifang_badge(84), (60, 66))
         d.text((164, 92), topic.get("series", "MASALAH TRADER MALAYSIA"), font=font("Bold", 34), fill=MUTED)
         self.ifang_big = ifang_badge(230 if "cta" in topic else 330)
-        if "series" not in topic:
-            p = pill(f"#{i + 1:02d}/{N}", font("Bold", 34), BG, GOLD, padx=22, pady=10)
-            self.top.alpha_composite(p, (W - 60 - p.width, 82))
         random.seed(i)
         self.parts = [(random.uniform(0, W), random.uniform(0, H), random.uniform(10, 40), random.uniform(1.5, 4)) for _ in range(40)]
         # kad bullet (dua keadaan: aktif / pasif)
@@ -359,7 +356,7 @@ class Renderer:
         if a <= 0: return
         hl = [l for l in self.lines if l["scene"] == "hook"]
         cc = self.tp.get("chip_color", "red")
-        chip = pill(self.tp.get("chip", f"MASALAH #{self.i + 1}"), font("Bold", 44), WHITE if cc == "red" else BG, COL[cc], padx=34, pady=16)
+        chip = pill(self.tp.get("chip", "MASALAH TRADER"), font("Bold", 44), WHITE if cc == "red" else BG, COL[cc], padx=34, pady=16)
         e = fx.back(seg(t, 0.05, 0.4)); put(img, fx.scaled(chip, max(0.05, e)), (W - chip.width * e) / 2, 280 + chip.height * (1 - e) / 2, a * min(1, e))
         tb = text_block(self.tp["hook"][0], font("ExtraBold", 88), WHITE, 960, lh=1.1, stroke=3)
         e = ease(seg(t, 0.2, 0.45)); s_ = 2.3 - 1.3 * e   # SLAM
