@@ -3,7 +3,8 @@
 Usage:
   python3 make_videos.py              # semua topik
   python3 make_videos.py 3 5          # topik #3 dan #5 sahaja
-Env: VOICE (default ms-MY-OsmanNeural), RATE (default +4%), BRAND (default ZIQFX), JOBS (default 4)
+Env: VOICE (default ElevenLabs "Daud M - Malay Influencer"; nama suara edge-tts seperti ms-MY-OsmanNeural pun boleh),
+     ELEVENLABS_API_KEY, RATE (edge-tts sahaja, default +4%), BRAND (default ZIQFX), JOBS (default 4)
 Output: out/<slug>.mp4 dan out/<slug>.jpg (cover)
 Perlu: ffmpeg, edge-tts (akses rangkaian ke speech.platform.bing.com untuk suara baru).
 """
@@ -18,7 +19,8 @@ from avatar import Avatar, mouth_track
 W, H, FPS, SR = 1080, 1920, 30, 44100
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "out")
-VOICE = os.environ.get("VOICE", "ms-MY-OsmanNeural")
+VOICE = os.environ.get("VOICE", "dNnVzcebCLVAswzGKvfO")  # ElevenLabs: Daud M - Malay Influencer
+EL_MODEL = os.environ.get("EL_MODEL", "eleven_multilingual_v2")
 RATE = os.environ.get("RATE", "+4%")
 BRAND = os.environ.get("BRAND", "ZIQFX")
 VDIR = os.path.join(HERE, "voice", VOICE)
@@ -39,9 +41,27 @@ def ease(t): t = max(0.0, min(1.0, t)); return 1 - (1 - t) ** 3
 def seg(t, a, b): return max(0.0, min(1.0, (t - a) / (b - a))) if b > a else float(t >= a)
 
 # ---------------- audio ----------------
-def tts(text):
+def elevenlabs(text, mp3, prev="", nxt=""):
+    import json, urllib.request
+    body = {"text": text, "model_id": EL_MODEL, "previous_text": prev, "next_text": nxt,
+            "voice_settings": {"stability": 0.38, "similarity_boost": 0.8, "style": 0.35, "use_speaker_boost": True}}
+    req = urllib.request.Request(f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE}?output_format=mp3_44100_128",
+                                 data=json.dumps(body).encode(), method="POST",
+                                 headers={"xi-api-key": os.environ.get("ELEVENLABS_API_KEY", "x"), "Content-Type": "application/json"})
+    for k in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r: open(mp3, "wb").write(r.read()); return
+        except Exception as e:
+            err = e; time.sleep(3 * (k + 1))
+    raise RuntimeError(f"ElevenLabs gagal: {text[:40]}... {err}")
+
+def tts(text, prev="", nxt=""):
     os.makedirs(VDIR, exist_ok=True)
-    mp3 = os.path.join(VDIR, hashlib.md5((text + RATE).encode()).hexdigest()[:10] + ".mp3")
+    el = "Neural" not in VOICE
+    key = text + (EL_MODEL if el else RATE)
+    mp3 = os.path.join(VDIR, hashlib.md5(key.encode()).hexdigest()[:10] + ".mp3")
+    if el and not os.path.exists(mp3):
+        elevenlabs(text, mp3, prev, nxt)
     if not os.path.exists(mp3):
         cmd = ["edge-tts", "--voice", VOICE, f"--rate={RATE}", "--text", text, "--write-media", mp3]
         if os.environ.get("HTTPS_PROXY"): cmd[1:1] = ["--proxy", os.environ["HTTPS_PROXY"]]
@@ -80,17 +100,17 @@ def build_timeline(i, topic):
     """Pulangkan (lines, scenes, audio). lines: list of dict(text, t0, t1, scene, item)."""
     nxt = TOPICS[i + 1]["title"] if i + 1 < N else None
     script = [("hook", None, topic["hook"][1]),
-              ("hook", None, f"Masalah trader Malaysia, nombor {i + 1}. {topic['title']}.")]
+              ("hook", None, f"Ni masalah trader Malaysia, nombor {i + 1}. {topic['title']}.")]
     for si, (_, _, items) in enumerate(topic["sections"]):
         for ii, (_, nar) in enumerate(items):
             script.append((f"s{si}", ii, nar))
-    script.append(("outro", None, "Ingat, trading ada risiko kerugian yang tinggi. Video ini bukan nasihat kewangan."))
-    script.append(("outro", None, f"Follow untuk masalah seterusnya: {nxt}." if nxt
-                   else "Simpan video ni, dan share dengan kawan trader kau."))
+    script.append(("outro", None, "Ingat ye, trading ni risiko dia tinggi. Video ni bukan nasihat kewangan."))
+    script.append(("outro", None, f"Follow tau. Next video, pasal {nxt}." if nxt
+                   else "Save video ni, share dekat member trader korang."))
     clips, lines, cur, prev_scene = [], [], 0.35, None
-    for scene, item, text in script:
+    for k, (scene, item, text) in enumerate(script):
         if prev_scene is not None and scene != prev_scene: cur += 0.75  # ruang untuk transisi babak
-        a = tts(text)
+        a = tts(text, script[k - 1][2] if k else "", script[k + 1][2] if k + 1 < len(script) else "")
         lines.append(dict(text=text.replace(".", ". ").replace("  ", " ").strip(), t0=cur, t1=cur + len(a) / SR, scene=scene, item=item))
         clips.append((cur, a)); cur += len(a) / SR + 0.32; prev_scene = scene
     dur = cur + 1.2
