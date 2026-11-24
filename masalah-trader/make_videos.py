@@ -100,13 +100,13 @@ def build_timeline(i, topic):
     """Pulangkan (lines, scenes, audio). lines: list of dict(text, t0, t1, scene, item)."""
     nxt = TOPICS[i + 1]["title"] if i + 1 < N else None
     script = [("hook", None, topic["hook"][1]),
-              ("hook", None, f"Ni masalah trader Malaysia, nombor {i + 1}. {topic['title']}.")]
-    for si, (_, _, items) in enumerate(topic["sections"]):
-        for ii, (_, nar) in enumerate(items):
+              ("hook", None, topic.get("intro", f"Ni masalah trader Malaysia, nombor {i + 1}. {topic['title']}."))]
+    for si, sec in enumerate(topic["sections"]):
+        for ii, (_, nar) in enumerate(sec[2]):
             script.append((f"s{si}", ii, nar))
-    script.append(("outro", None, "Ingat ye, trading ni risiko dia tinggi. Video ni bukan nasihat kewangan."))
-    script.append(("outro", None, f"Follow tau. Next video, pasal {nxt}." if nxt
-                   else "Save video ni, share dekat member trader korang."))
+    outro = topic.get("outro") or ["Ingat ye, trading ni risiko dia tinggi. Video ni bukan nasihat kewangan.",
+                                   f"Follow tau. Next video, pasal {nxt}." if nxt else "Save video ni, share dekat member trader korang."]
+    for o in outro: script.append(("outro", None, o))
     clips, lines, cur, prev_scene = [], [], 0.35, None
     for k, (scene, item, text) in enumerate(script):
         if prev_scene is not None and scene != prev_scene: cur += 0.75  # ruang untuk transisi babak
@@ -188,6 +188,20 @@ def make_bg(color, seed):
         sd.rectangle([x - 9, min(o, c), x + 9, max(o, c) + 2], fill=col); p = c
     return img.convert("RGB"), strip
 
+def phone(path, h):
+    """Tangkapan skrin dalam bingkai telefon (bucu bulat, bezel, cahaya emas)."""
+    sc = Image.open(path).convert("RGB"); w = int(h * sc.width / sc.height)
+    sc = sc.resize((w, h), Image.LANCZOS)
+    m = Image.new("L", (w, h), 0); ImageDraw.Draw(m).rounded_rectangle([0, 0, w - 1, h - 1], 48, fill=255)
+    bz = 14; out = Image.new("RGBA", (w + 2 * bz + 80, h + 2 * bz + 80), (0, 0, 0, 0))
+    gl = Image.new("RGBA", out.size, (0, 0, 0, 0))
+    ImageDraw.Draw(gl).rounded_rectangle([30, 30, out.width - 30, out.height - 30], 70, fill=GOLD + (110,))
+    out.alpha_composite(gl.filter(ImageFilter.GaussianBlur(26)))
+    ImageDraw.Draw(out).rounded_rectangle([40, 40, 40 + w + 2 * bz, 40 + h + 2 * bz], 60, fill=(16, 16, 20, 255),
+                                          outline=(90, 90, 100, 255), width=3)
+    sca = sc.convert("RGBA"); sca.putalpha(m); out.alpha_composite(sca, (40 + bz, 40 + bz))
+    return out
+
 # ---------------- scene renderers ----------------
 class Renderer:
     def __init__(self, i, topic, lines, scenes, dur):
@@ -195,17 +209,23 @@ class Renderer:
         accent = COL["red"]
         self.bg, self.strip = make_bg(accent, i + 7)
         self.top = Image.new("RGBA", (W, 200), (0, 0, 0, 0)); d = ImageDraw.Draw(self.top)
-        d.text((60, 92), "MASALAH TRADER MALAYSIA", font=font("Bold", 34), fill=MUTED)
-        p = pill(f"#{i + 1:02d}/{N}", font("Bold", 34), BG, GOLD, padx=22, pady=10)
-        self.top.alpha_composite(p, (W - 60 - p.width, 82))
+        d.text((60, 92), topic.get("series", "MASALAH TRADER MALAYSIA"), font=font("Bold", 34), fill=MUTED)
+        if "series" not in topic:
+            p = pill(f"#{i + 1:02d}/{N}", font("Bold", 34), BG, GOLD, padx=22, pady=10)
+            self.top.alpha_composite(p, (W - 60 - p.width, 82))
         self.brand = text_block(BRAND, font("Bold", 30), (255, 255, 255, 120), 400)
         random.seed(i)
         self.parts = [(random.uniform(0, W), random.uniform(0, H), random.uniform(10, 40), random.uniform(1.5, 4)) for _ in range(40)]
         # kad bullet (dua keadaan: aktif / pasif)
         self.cards = {}
-        for si, (_, cname, items) in enumerate(topic["sections"]):
+        self.phones = {}
+        for si, sec in enumerate(topic["sections"]):
+            _, cname, items = sec[:3]
             for ii, (txt, _) in enumerate(items):
                 self.cards[(si, ii)] = (self.card(ii + 1, txt, COL[cname], True), self.card(ii + 1, txt, COL[cname], False))
+            if len(sec) > 3:
+                for path in sec[3]:
+                    if path not in self.phones: self.phones[path] = phone(path, 800)
         self.words = self.caption_words()
         self.av = Avatar(400)
 
@@ -262,7 +282,8 @@ class Renderer:
     def hook(self, img, t, a):
         if a <= 0: return
         hl = [l for l in self.lines if l["scene"] == "hook"]
-        chip = pill(f"MASALAH #{self.i + 1}", font("Bold", 44), WHITE, COL["red"], padx=34, pady=16)
+        cc = self.tp.get("chip_color", "red")
+        chip = pill(self.tp.get("chip", f"MASALAH #{self.i + 1}"), font("Bold", 44), WHITE if cc == "red" else BG, COL[cc], padx=34, pady=16)
         e = ease(seg(t, 0.1, 0.6)); put(img, chip, (W - chip.width) / 2, 470 - 40 * (1 - e), a * e)
         tb = text_block(self.tp["hook"][0], font("ExtraBold", 96), WHITE, 920, lh=1.12)
         e = ease(seg(t, 0.3, 0.9)); s = 0.85 + 0.15 * e
@@ -277,11 +298,12 @@ class Renderer:
 
     def section(self, img, t, si, a):
         if a <= 0: return
-        head, cname, items = self.tp["sections"][si]
+        sec = self.tp["sections"][si]; head, cname, items = sec[:3]
         sl = [l for l in self.lines if l["scene"] == f"s{si}"]
         t0 = sl[0]["t0"]
         chip = pill(head, font("Bold", 46), BG if cname != "red" else WHITE, COL[cname], padx=34, pady=16)
         e = ease(seg(t, t0 - 0.4, t0)); put(img, chip, 70 - 60 * (1 - e), 300, a * e)
+        if len(sec) > 3: return self.phone_section(img, t, sec, sl, a)
         y = 460
         active = max([l["item"] for l in sl if t >= l["t0"] - 0.15] or [-1])
         for ii in range(len(items)):
@@ -292,6 +314,37 @@ class Renderer:
                 put(img, on if ii == active else off, 70 + 120 * (1 - e), y, a * e * (1 if ii == active else 0.85))
             y += on.height + 30
 
+    def phone_section(self, img, t, sec, sl, a):
+        """Babak ciri app: tajuk ciri di atas, telefon dengan skrin app di kanan (avatar kekal kiri bawah)."""
+        _, cname, items, shots = sec
+        k = max([l["item"] for l in sl if t >= l["t0"] - 0.2] or [0])
+        st = sl[k]["t0"] - 0.2
+        e = ease(seg(t, st, st + 0.4))
+        tb = text_block(items[k][0], font("ExtraBold", 56), WHITE, 960)
+        put(img, tb, (W - tb.width) / 2, 405 + 20 * (1 - e), a * e)
+        cx, top = W / 2 + 130, 610
+        prev = shots[k - 1] if k else None
+        if prev and prev != shots[k] and e < 1:
+            pi = self.phones[prev]; put(img, pi, cx - pi.width / 2 - 200 * e, top, a * (1 - e))
+        ph = self.phones[shots[k]]
+        fresh = not prev or prev != shots[k]
+        dx = 200 * (1 - e) if fresh else 0
+        put(img, ph, cx - ph.width / 2 + dx, top - 40, a * (e if fresh else 1))
+
+    def cta(self, img, t, a, y, e2):
+        c = self.tp["cta"]
+        box = Image.new("RGBA", (940, 300), (0, 0, 0, 0)); d = ImageDraw.Draw(box)
+        d.rounded_rectangle([0, 0, 939, 299], 36, fill=(255, 255, 255, 18), outline=GOLD + (255,), width=3)
+        d.text((50, 40), "KOD JEMPUTAN", font=font("Bold", 36), fill=GOLD)
+        d.text((50, 92), c["code"], font=font("ExtraBold", 96), fill=WHITE)
+        lk = text_block(c["link"], font("SemiBold", 36), MUTED, 860, align="left")
+        box.alpha_composite(lk, (50, 226))
+        put(img, box, 70, y + 40 * (1 - e2), a)
+        fl = pill("Link di bio", font("Bold", 50), BG, WHITE, padx=44, pady=20)
+        pulse = 1 + 0.03 * math.sin(t * 6)
+        fl2 = fl.resize((int(fl.width * pulse), int(fl.height * pulse)), Image.LANCZOS)
+        put(img, fl2, W / 2 + 160 - fl2.width / 2, y + 340 - (fl2.height - fl.height) / 2, a)
+
     def outro(self, img, t, a):
         if a <= 0: return
         ol = [l for l in self.lines if l["scene"] == "outro"]
@@ -300,8 +353,12 @@ class Renderer:
         put(img, warn, (W - warn.width) / 2, 360, a * e)
         tb = text_block("Trading berisiko tinggi. Bukan nasihat kewangan.", font("ExtraBold", 74), WHITE, 900)
         put(img, tb, (W - tb.width) / 2, 450 + 30 * (1 - e), a * e)
+        if "cta" in self.tp:
+            sub = text_block("TRAXA alat bantu analisis, bukan jaminan untung.", font("Medium", 36), MUTED, 980)
+            put(img, sub, (W - sub.width) / 2, 470 + tb.height + 30 * (1 - e), a * e); tb = Image.new("RGBA", (1, tb.height + 70))
         e2 = ease(seg(t, ol[1]["t0"] - 0.2, ol[1]["t0"] + 0.3))
         if e2 <= 0: return
+        if "cta" in self.tp: return self.cta(img, t, a * e2, 880, e2)
         nxt = TOPICS[self.i + 1]["title"] if self.i + 1 < N else None
         y = 480 + tb.height + 50
         box = Image.new("RGBA", (940, 300), (0, 0, 0, 0)); d = ImageDraw.Draw(box)
@@ -352,8 +409,8 @@ class Renderer:
         put(img, av, cx - av.width / 2, top, intro)
 
 # ---------------- render ----------------
-def render(i):
-    topic = TOPICS[i]
+def render(i, topic=None):
+    topic = topic or TOPICS[i]
     lines, scenes, mix, dur, voice = build_timeline(i, topic)
     os.makedirs(OUT, exist_ok=True)
     wav = os.path.join(OUT, f"_{topic['slug']}.wav")
@@ -375,6 +432,9 @@ def render(i):
     return f"{topic['slug']}.mp4  {dur:.1f}s"
 
 if __name__ == "__main__":
+    if sys.argv[1:] == ["traxa"]:
+        from traxa import TRAXA
+        print("siap:", render(N, TRAXA)); sys.exit()
     idx = [int(a) - 1 for a in sys.argv[1:]] or list(range(N))
     for i in idx: build_timeline(i, TOPICS[i])  # jana semua suara dulu (berurutan, elak rate-limit)
     with Pool(int(os.environ.get("JOBS", "4"))) as p:
