@@ -15,6 +15,8 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 from topics import TOPICS
 from avatar import Avatar, mouth_track
+import fx
+from charts import CHARTS
 
 W, H, FPS, SR = 1080, 1920, 30, 44100
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -123,10 +125,34 @@ def build_timeline(i, topic):
     k = SR // 4; cs = np.concatenate([[0], np.cumsum((np.abs(voice) > 0.02).astype(np.float32))])
     env = (cs[np.minimum(np.arange(len(voice)) + k // 2, len(voice))] - cs[np.maximum(np.arange(len(voice)) - k // 2, 0)]) / k
     mix = voice + music(dur, i) * (0.11 - 0.06 * np.clip(env * 3, 0, 1))
+    track = np.zeros_like(mix)
+    for t0, kind, g in sfx_events(topic, lines):
+        x = fx.sfx(kind, SR, seed=int(t0 * 100)); a0 = int(max(0, t0) * SR); x = x[:max(0, len(track) - a0)]
+        track[a0:a0 + len(x)] += x * g
+    mix = mix + track * 0.55
     scenes = {}
     for l in lines:
         s = scenes.setdefault(l["scene"], [l["t0"], l["t1"]]); s[1] = l["t1"]
     return lines, scenes, mix.clip(-1, 1), dur, voice
+
+def sfx_events(topic, lines):
+    """(masa, jenis, gain) untuk SFX; dipadankan dengan efek visual dalam Renderer.fx_plan."""
+    ev = [(0.42, "boom", 0.55), (0.1, "riser", 0.5)]
+    cfg = CHARTS.get(topic["slug"])
+    if cfg:
+        ev += [(tl, "pop", 0.6) for tl in fx.label_times(cfg, lines)]
+        if cfg.get("stamp"): ev += [(fx.chart_times(lines)[1], "boom", 0.9), (fx.chart_times(lines)[1], "glitch", 0.6)]
+    seen = set()
+    for l in lines:
+        if l["scene"] not in seen and l["scene"] != "hook":
+            ev += [(l["t0"] - 0.5, "glitch", 0.5), (l["t0"] - 0.55, "whoosh", 0.7)]
+        elif l["scene"].startswith("s"):
+            ev += [(l["t0"] - 0.2, "whoosh", 0.45)]
+        if l["scene"].startswith("s"): ev.append((l["t0"] - 0.05, "pop", 0.35))
+        seen.add(l["scene"])
+    ol = [l for l in lines if l["scene"] == "outro"]
+    if len(ol) > 1: ev.append((ol[1]["t0"] - 0.1, "ding", 0.6))
+    return ev
 
 # ---------------- drawing helpers ----------------
 def wrap(text, f, maxw):
@@ -227,7 +253,11 @@ class Renderer:
                 for path in sec[3]:
                     if path not in self.phones: self.phones[path] = phone(path, 800)
         self.words = self.caption_words()
-        self.av = Avatar(400)
+        self.av = Avatar(360); self.avh = int(470 * 360 / 360)
+        cfg = CHARTS.get(topic["slug"])
+        self.chart = fx.LiveChart(cfg, seed=i + 3) if cfg else None
+        self.ct = fx.chart_times(lines)
+        self.fx_plan()
 
     def card(self, n, txt, color, active):
         f = font("SemiBold", 52); tb = text_block(txt, f, WHITE if active else (225, 228, 236), 740, align="left")
@@ -262,8 +292,7 @@ class Renderer:
 
     def frame(self, t):
         img = self.bg.copy().convert("RGBA")
-        off = int((t * 18) % (self.strip.width - W))
-        img.alpha_composite(self.strip.crop((off, 0, off + W, 520)), (0, 1180))
+        fx.floor3d(img, t)
         d = ImageDraw.Draw(img)
         for x, y0, sp, sz in self.parts:
             y = (y0 - sp * t) % H
@@ -277,24 +306,59 @@ class Renderer:
         self.presenter(img, t)
         self.captions(img, t)
         put(img, self.brand, (W - self.brand.width) / 2, H - 120, 1)
-        return img.convert("RGB")
+        return self.post(img.convert("RGB"), t)
+
+    def fx_plan(self):
+        """Zoom punch, gegar, glitch dan flash - sepadan dengan sfx_events()."""
+        L = self.lines; self.punch = [(0.45, 0.07)]; self.shake = [(0.45, 14, 0.3)]; self.flash = [(0.45, 0.45)]; self.glitch = []
+        if self.chart and self.chart.c.get("stamp"):
+            ts = self.ct[1]; self.punch.append((ts, 0.09)); self.shake.append((ts, 24, 0.5)); self.flash.append((ts, 0.3))
+        seen = set()
+        for l in L:
+            if l["scene"] not in seen and l["scene"] != "hook": self.glitch.append(l["t0"] - 0.5)
+            if l["scene"].startswith("s") or l["scene"] == "outro": self.punch.append((l["t0"] - 0.05, 0.03))
+            seen.add(l["scene"])
+        # pose & ekspresi pembentang untuk setiap ayat
+        self.pose = []
+        for l in L:
+            sc = l["scene"]; it = l["item"]
+            if sc == "hook": p = ("open", "surprise", 0) if l is L[0] else ("point", "happy", 0)
+            elif sc == "outro": p = ("wag", "serious", 0.5) if l is [x for x in L if x["scene"] == "outro"][0] else ("point", "happy", 0)
+            else:
+                sec = self.tp["sections"][int(sc[1:])]
+                if len(sec) > 3 or sec[1] in ("green", "gold"): p = ("point", "happy", 0)
+                else: p = [("open", "worried", 0), ("wag", "serious", 0.6), ("open", "worried", 0.3)][it % 3]
+            self.pose.append((l["t0"], l["t1"], *p))
+
+    def post(self, img, t):
+        z = 1.0; dx = dy = 0.0; rnd = random.Random(int(t * 1000))
+        for tp, m in self.punch: z += m * (1 - fx.ease(fx.seg(t, tp, tp + 0.35))) * (t >= tp)
+        for ts, m, du in self.shake:
+            if ts <= t < ts + du:
+                k = (1 - (t - ts) / du) * m; dx += rnd.uniform(-k, k); dy += rnd.uniform(-k, k)
+        img = fx.camera(img, z, dx, dy)
+        for tg in self.glitch:
+            if abs(t - tg) < 0.13: img = fx.glitch(img, 1 - abs(t - tg) / 0.13, int(t * 1000))
+        for tf, m in self.flash:
+            if tf <= t < tf + 0.25: img = fx.flash(img, m * (1 - (t - tf) / 0.25))
+        return img
 
     def hook(self, img, t, a):
         if a <= 0: return
         hl = [l for l in self.lines if l["scene"] == "hook"]
         cc = self.tp.get("chip_color", "red")
         chip = pill(self.tp.get("chip", f"MASALAH #{self.i + 1}"), font("Bold", 44), WHITE if cc == "red" else BG, COL[cc], padx=34, pady=16)
-        e = ease(seg(t, 0.1, 0.6)); put(img, chip, (W - chip.width) / 2, 470 - 40 * (1 - e), a * e)
-        tb = text_block(self.tp["hook"][0], font("ExtraBold", 96), WHITE, 920, lh=1.12)
-        e = ease(seg(t, 0.3, 0.9)); s = 0.85 + 0.15 * e
-        im = tb.resize((int(tb.width * s), int(tb.height * s)), Image.LANCZOS) if s < 0.999 else tb
-        put(img, im, (W - im.width) / 2, 600 + (tb.height - im.height) / 2, a * e)
-        e2 = ease(seg(t, hl[1]["t0"] - 0.1, hl[1]["t0"] + 0.4))
+        e = fx.back(seg(t, 0.05, 0.4)); put(img, fx.scaled(chip, max(0.05, e)), (W - chip.width * e) / 2, 280 + chip.height * (1 - e) / 2, a * min(1, e))
+        tb = text_block(self.tp["hook"][0], font("ExtraBold", 88), WHITE, 960, lh=1.1, stroke=3)
+        e = ease(seg(t, 0.2, 0.45)); s_ = 2.3 - 1.3 * e   # SLAM
+        im = fx.scaled(tb, s_)
+        put(img, im, (W - im.width) / 2, 380 + tb.height / 2 - im.height / 2, a * min(1, e * 1.5))
+        e2 = fx.back(seg(t, hl[1]["t0"] - 0.1, hl[1]["t0"] + 0.25))
         if e2 > 0:
-            y = 600 + tb.height + 60
-            d = ImageDraw.Draw(img); d.rectangle([W / 2 - 90, y, W / 2 + 90, y + 6], fill=GOLD + (int(255 * a * e2),))
-            tt = text_block(self.tp["title"], font("Bold", 64), GOLD, 900)
-            put(img, tt, (W - tt.width) / 2, y + 40 + 30 * (1 - e2), a * e2)
+            tt = text_block(self.tp["title"], font("ExtraBold", 54), GOLD, 940)
+            im = fx.scaled(tt, max(0.05, e2))
+            put(img, im, (W - im.width) / 2, 380 + tb.height + 26 + (tt.height - im.height) / 2, a * min(1, e2))
+        if self.chart: self.chart.draw(img, t, self.ct[0], self.ct[1], a)
 
     def section(self, img, t, si, a):
         if a <= 0: return
@@ -311,7 +375,9 @@ class Renderer:
             st = sl[ii]["t0"] - 0.15
             e = ease(seg(t, st, st + 0.45))
             if e > 0:
-                put(img, on if ii == active else off, 70 + 120 * (1 - e), y, a * e * (1 if ii == active else 0.85))
+                c = on if ii == active else off
+                fx.warp3d(img, c, 70 + c.width / 2 + 160 * (1 - e), y + c.height / 2, ry=75 * (1 - e),
+                          scale=1 + 0.03 * (ii == active) * (1 - ease(seg(t, st + 0.15, st + 0.5))), a=a * e * (1 if ii == active else 0.85))
             y += on.height + 30
 
     def phone_section(self, img, t, sec, sl, a):
@@ -328,8 +394,9 @@ class Renderer:
             pi = self.phones[prev]; put(img, pi, cx - pi.width / 2 - 200 * e, top, a * (1 - e))
         ph = self.phones[shots[k]]
         fresh = not prev or prev != shots[k]
-        dx = 200 * (1 - e) if fresh else 0
-        put(img, ph, cx - ph.width / 2 + dx, top - 40, a * (e if fresh else 1))
+        ry = (70 * (1 - e) if fresh else 0) - 9 * math.sin(t * 0.9)
+        fx.warp3d(img, ph, cx + (200 * (1 - e) if fresh else 0), top - 40 + ph.height / 2, ry=ry, rx=3 * math.sin(t * 0.7),
+                  a=a * (e if fresh else 1))
 
     def cta(self, img, t, a, y, e2):
         c = self.tp["cta"]
@@ -391,22 +458,27 @@ class Renderer:
         img.alpha_composite(fade(layer, pop), (0, int(y + 14 * (1 - pop))))
 
     def presenter(self, img, t):
-        """Pembentang 3D: besar di tengah semasa hook, kemudian beralih ke penjuru kiri bawah."""
+        """Pembentang 3D di penjuru kiri bawah, dengan gerak tangan & ekspresi ikut ayat."""
         k = min(int(t * FPS), len(self.mouth) - 1)
-        av = self.av.render(t, self.mouth[k], self.energy[k])
-        s0 = self.sc["s0"][0]
-        e = ease(seg(t, s0 - 0.9, s0 - 0.1))
-        intro = ease(seg(t, 0.0, 0.6))
-        w = 400 + (270 - 400) * e
-        cx = W / 2 + (30 + 135 - W / 2) * e
-        top = 1040 + (1185 - 1040) * e + 80 * (1 - intro)
-        if abs(w - 400) > 0.5: av = av.resize((int(w), int(av.height * w / 400)), Image.LANCZOS)
-        # cakera emas di belakang pembentang
+        pose, w, expr, we, shake = ("rest", 0.0), 0.0, None, 0.0, 0.0
+        for t0, t1, pn, en, sh in self.pose:
+            if t0 - 0.3 <= t <= t1 + 0.3:
+                w = ease(seg(t, t0 - 0.3, t0 + 0.1)) * (1 - ease(seg(t, t1 - 0.05, t1 + 0.3)))
+                pose = (pn, w); we = w
+                E0, E1 = Avatar.EXPR["happy"], Avatar.EXPR[en]
+                expr = tuple(a_ + (b_ - a_) * we for a_, b_ in zip(E0, E1))
+                shake = sh * (1 - seg(t, t0, t0 + 0.9)) * w
+                break
+        av = self.av.render(t, self.mouth[k], self.energy[k], pose, expr, shake)
+        intro = fx.back(seg(t, 0.1, 0.55))
+        cx, top = 200, 1150
         disc = Image.new("RGBA", av.size, (0, 0, 0, 0)); dd = ImageDraw.Draw(disc)
-        r = av.width * 0.46; c = (av.width / 2, av.height * 0.42)
+        r = av.width * 0.34; c = (av.width / 2, av.height * 0.4)
         dd.ellipse([c[0] - r, c[1] - r, c[0] + r, c[1] + r], fill=GOLD + (40,), outline=GOLD + (150,), width=3)
-        put(img, disc, cx - av.width / 2, top, intro)
-        put(img, av, cx - av.width / 2, top, intro)
+        if intro < 0.999:
+            av = fx.scaled(av, max(0.05, intro)); disc = fx.scaled(disc, max(0.05, intro))
+        fx.put(img, disc, cx - disc.width / 2, top + self.avh - disc.height, min(1, intro))
+        fx.put(img, av, cx - av.width / 2, top + self.avh - av.height, min(1, intro))
 
 # ---------------- render ----------------
 def render(i, topic=None):

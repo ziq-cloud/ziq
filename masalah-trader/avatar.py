@@ -141,45 +141,117 @@ class Avatar:
         ph = (t + 0.7) % 3.7
         return 1 - abs(ph - 0.08) / 0.08 if ph < 0.16 else 0.0
 
-    def render(self, t, mouth, energy=0.0):
+    # ekspresi: (kening naik, kening condong ke dalam, bukaan mata, senyum 0..1, mulut bulat 0..1)
+    EXPR = {"happy": (0, 0, 1.0, 1.0, 0), "worried": (3, 7, 1.1, 0.25, 0),
+            "surprise": (10, 0, 1.45, 0.3, 1), "serious": (-3, -5, 0.95, 0.15, 0)}
+    # pose tangan (gaya bust shot): kedudukan pergelangan (unit kanvas asas) + arah jari (darjah, 0 = atas, + = kanan)
+    POSE = {"point": {"R": ((292, 318), 50, "point")},
+            "open": {"L": ((78, 352), -35, "open"), "R": ((282, 352), 35, "open")},
+            "wag": {"R": ((300, 262), 0, "point")}}
+    ANCHOR = {"L": (120, 640), "R": (240, 640)}
+
+    def render(self, t, mouth, energy=0.0, pose=("rest", 0.0), expr=None, shake=0.0):
         P = self.P; W, H = self.size
+        br, bt, eo, sm, mr = expr or self.EXPR["happy"]
         head = self.head.copy(); d = ImageDraw.Draw(head)
-        bl = self.blink(t); brow = P(4) * energy; look = math.sin(t * 0.6) * P(3)
-        skin = tuple(SKIN.astype(int))
-        for ex in (P(138), P(222)):
-            ey = P(204); eh = max(P(1.5), P(7.5) * (1 - bl))
+        bl = self.blink(t); brow = P(4) * energy + P(br); look = math.sin(t * 0.6) * P(3)
+        for side, ex in ((-1, P(138)), (1, P(222))):
+            ey = P(204); eh = max(P(1.5), P(7.5) * eo * (1 - bl))
             d.ellipse([ex - P(18), ey - eh, ex + P(18), ey + eh], fill=(248, 244, 238))
             if bl < 0.7:
-                d.ellipse([ex - P(9) + look, ey - P(9), ex + P(9) + look, ey + P(9)], fill=(58, 36, 24))
+                ir = P(9) * min(1.15, eo)
+                d.ellipse([ex - ir + look, ey - ir, ex + ir + look, ey + ir], fill=(58, 36, 24))
                 d.ellipse([ex - P(4.5) + look, ey - P(4.5), ex + P(4.5) + look, ey + P(4.5)], fill=(10, 8, 6))
                 d.ellipse([ex - P(6) + look, ey - P(6), ex - P(2) + look, ey - P(2)], fill=(255, 255, 255))
-            d.arc([ex - P(20), ey - P(6), ex + P(20), ey + P(14)], 20, 160, fill=(120, 72, 52), width=P(2))  # kelopak bawah
-            d.arc([ex - P(20), ey - P(12), ex + P(20), ey + P(12)], 200, 340, fill=(40, 26, 20), width=P(3))
-            d.line([(ex - P(24), ey - P(22) - brow), (ex, ey - P(28) - brow), (ex + P(24), ey - P(25) - brow)],
-                   fill=(22, 18, 16), width=P(8), joint="curve")
-        # mulut: senyum lebar nampak gigi, buka ikut suara
+            if eo < 1.2:
+                d.arc([ex - P(20), ey - P(6), ex + P(20), ey + P(14)], 20, 160, fill=(120, 72, 52), width=P(2))
+            d.arc([ex - P(20), ey - P(12) * eo, ex + P(20), ey + P(12) * eo], 200, 340, fill=(40, 26, 20), width=P(3))
+            inner = -side * P(24); outer = side * P(24)  # hujung dalam kening dekat hidung
+            d.line([(ex + inner, ey - P(22) - brow - P(bt)), (ex, ey - P(28) - brow - P(bt) * 0.4),
+                    (ex + outer, ey - P(25) - brow + P(bt) * 0.3)], fill=(22, 18, 16), width=P(8), joint="curve")
         mx, my = P(180), P(286); o = max(0.0, min(1.0, mouth))
-        mw = P(36) + P(4) * o; up = P(4); dn = P(14) + P(22) * o
-        d.chord([mx - mw, my - up - dn * 0.25, mx + mw, my + dn], 0, 180, fill=(70, 22, 28))
-        d.chord([mx - mw * 0.92, my - up - P(8), mx + mw * 0.92, my + P(10) + P(2) * o], 0, 180, fill=(246, 244, 238))
-        if o > 0.3:
-            d.ellipse([mx - mw * 0.5, my + dn * 0.45, mx + mw * 0.5, my + dn * 0.95], fill=(190, 92, 96))
-        d.line([(mx - mw - P(2), my - up + P(1)), (mx + mw + P(2), my - up + P(1))], fill=(150, 80, 72), width=P(3))
-        d.arc([mx - mw, my - up - dn * 0.25, mx + mw, my + dn + P(2)], 10, 170, fill=(160, 96, 86), width=P(3))
-        ang = 2.2 * math.sin(t * 1.25) + 1.5 * math.sin(t * 0.53) + 3.0 * energy * math.sin(t * 7)
+        if sm >= 0.6 and mr < 0.5:  # senyum lebar nampak gigi
+            mw = (P(36) + P(4) * o) * (0.75 + 0.25 * sm); up = P(4); dn = P(14) + P(22) * o
+            d.chord([mx - mw, my - up - dn * 0.25, mx + mw, my + dn], 0, 180, fill=(70, 22, 28))
+            d.chord([mx - mw * 0.92, my - up - P(8), mx + mw * 0.92, my + P(10) + P(2) * o], 0, 180, fill=(246, 244, 238))
+            if o > 0.3:
+                d.ellipse([mx - mw * 0.5, my + dn * 0.45, mx + mw * 0.5, my + dn * 0.95], fill=(190, 92, 96))
+            d.line([(mx - mw - P(2), my - up + P(1)), (mx + mw + P(2), my - up + P(1))], fill=(150, 80, 72), width=P(3))
+            d.arc([mx - mw, my - up - dn * 0.25, mx + mw, my + dn + P(2)], 10, 170, fill=(160, 96, 86), width=P(3))
+        else:
+            if mr >= 0.5:
+                w, h = P(14) + P(5) * o, P(15) + P(14) * o
+            else:
+                w, h = P(22) + P(8) * o, P(2) + P(22) * o
+            cy = my + P(6)
+            if o < 0.08 and mr < 0.5:  # mulut tutup: lengkung ikut senyum
+                c = P(10) * (sm - 0.3)
+                d.line([(mx - w, cy - c), (mx, cy + c * 0.6), (mx + w, cy - c)], fill=(120, 52, 48), width=P(4), joint="curve")
+            else:
+                d.ellipse([mx - w, cy - h * 0.5, mx + w, cy + h * 0.6], fill=(70, 22, 28))
+                if o > 0.25 and mr < 0.5:
+                    d.chord([mx - w * 0.85, cy - h * 0.5, mx + w * 0.85, cy - h * 0.1], 180, 360, fill=(240, 238, 232))
+                d.ellipse([mx - w, cy - h * 0.5, mx + w, cy + h * 0.6], outline=(150, 80, 72), width=P(3))
+        ang = 2.2 * math.sin(t * 1.25) + 1.5 * math.sin(t * 0.53) + 3.0 * energy * math.sin(t * 7) + 6 * shake * math.sin(t * 13)
         head = head.rotate(ang, Image.BICUBIC, center=(W / 2, P(320)))
-        out = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-        out.alpha_composite(self.shadow)
+        base = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        base.alpha_composite(self.shadow)
         breath = int(P(2) * math.sin(t * 1.8))
-        out.alpha_composite(self.body, (0, breath))
-        out.alpha_composite(head, (int(P(2) * math.sin(t * 0.9)), int(-P(5) * energy + breath * 0.5)))
-        out = out.resize((W // SS, H // SS), Image.LANCZOS)
+        base.alpha_composite(self.body, (0, breath))
+        base.alpha_composite(head, (int(P(2) * math.sin(t * 0.9)), int(-P(5) * energy + breath * 0.5)))
+        # kanvas lebih lebar supaya tangan boleh keluar dari badan
+        ox = P(60); out = Image.new("RGBA", (W + 2 * ox, H), (0, 0, 0, 0)); out.alpha_composite(base, (ox, 0))
+        self.arms(out, t, ox, pose)
+        out = out.resize((out.width // SS, H // SS), Image.LANCZOS)
         if not hasattr(self, "_fade"):
             h = out.height; g = np.clip((h - np.arange(h)) / (h * 0.16), 0, 1)
             self._fade = Image.fromarray((np.repeat(g[:, None], out.width, 1) * 255).astype(np.uint8))
         out.putalpha(Image.fromarray(np.minimum(np.array(out.getchannel("A")), np.array(self._fade))))
         return out
 
+    def arms(self, img, t, ox, pose):
+        P = self.P; name, w = pose
+        if w < 0.03 or name not in self.POSE: return
+        d = ImageDraw.Draw(img)
+        sleeve = tuple((SUIT * 1.25).astype(int)); hi = tuple((SUIT * 2.2).astype(int)); cuff = tuple((SUIT * 0.8).astype(int))
+        skin = tuple(SKIN.astype(int)); skin_d = tuple((SKIN * 0.75).astype(int)); skin_h = tuple(np.minimum(255, SKIN * 1.18).astype(int))
+        e = 1 - (1 - w) ** 3
+        for side, ((hx, hy), fang, kind) in self.POSE[name].items():
+            ax, ay = self.ANCHOR[side]
+            if name == "wag": fang += 16 * math.sin(t * 12)
+            if kind == "open": fang += 5 * math.sin(t * 3 + (side == "L"))
+            # dari bawah bingkai ke kedudukan sasaran
+            wx = ox + P(ax + (hx - ax) * e); wy = P(ay + (hy - ay) * e)
+            A = (ox + P(ax), P(ay)); Wr = (wx, wy)
+            th = P(50)
+            d.line([A, Wr], fill=sleeve, width=th)
+            dx, dy = Wr[0] - A[0], Wr[1] - A[1]; ln = math.hypot(dx, dy) + 1e-6
+            nx, ny = -dy / ln, dx / ln
+            for k, col in ((0.32, hi), (-0.38, cuff)):
+                d.line([(A[0] + nx * th * k, A[1] + ny * th * k), (Wr[0] + nx * th * k, Wr[1] + ny * th * k)], fill=col, width=P(4))
+            d.ellipse([wx - th / 2, wy - th / 2, wx + th / 2, wy + th / 2], fill=cuff)
+            fd = (math.sin(math.radians(fang)), -math.cos(math.radians(fang)))
+            hc = (wx + fd[0] * P(24), wy + fd[1] * P(24))
+            if kind == "point":
+                d.ellipse([hc[0] - P(23), hc[1] - P(22), hc[0] + P(23), hc[1] + P(22)], fill=skin, outline=skin_d, width=P(2))
+                for j in range(3):  # buku jari
+                    kx = hc[0] - P(12) + j * P(10); d.arc([kx - P(6), hc[1] - P(4), kx + P(6), hc[1] + P(10)], 200, 340, fill=skin_d, width=P(2))
+                b0 = (hc[0] + fd[0] * P(14), hc[1] + fd[1] * P(14)); tip = (hc[0] + fd[0] * P(56), hc[1] + fd[1] * P(56))
+                d.line([b0, tip], fill=skin, width=P(15)); d.ellipse([tip[0] - P(7.5), tip[1] - P(7.5), tip[0] + P(7.5), tip[1] + P(7.5)], fill=skin)
+                d.line([b0, tip], fill=skin_h, width=P(3))
+                tp = (hc[0] - fd[1] * P(18) * (1 if side == "R" else -1), hc[1] + fd[0] * P(18))
+                d.ellipse([tp[0] - P(9), tp[1] - P(9), tp[0] + P(9), tp[1] + P(9)], fill=skin, outline=skin_d, width=P(2))
+            else:  # tapak tangan terbuka
+                d.ellipse([hc[0] - P(26), hc[1] - P(24), hc[0] + P(26), hc[1] + P(28)], fill=skin, outline=skin_d, width=P(2))
+                for da, L in ((-38, 34), (-13, 46), (12, 48), (36, 40)):
+                    a_ = math.radians(fang + da); v = (math.sin(a_), -math.cos(a_))
+                    p0 = (hc[0] + v[0] * P(16), hc[1] + v[1] * P(16)); p1 = (hc[0] + v[0] * P(L), hc[1] + v[1] * P(L))
+                    d.line([p0, p1], fill=skin, width=P(13)); d.ellipse([p1[0] - P(6.5), p1[1] - P(6.5), p1[0] + P(6.5), p1[1] + P(6.5)], fill=skin)
+                sgn = -1 if side == "R" else 1
+                a_ = math.radians(fang + sgn * 80); v = (math.sin(a_), -math.cos(a_))
+                tp = (hc[0] + v[0] * P(30), hc[1] + v[1] * P(30))
+                d.line([hc, tp], fill=skin, width=P(14)); d.ellipse([tp[0] - P(7), tp[1] - P(7), tp[0] + P(7), tp[1] + P(7)], fill=skin)
+                d.arc([hc[0] - P(14), hc[1] - P(4), hc[0] + P(14), hc[1] + P(18)], 200, 340, fill=skin_d, width=P(2))
 
 
 def mouth_track(voice, sr, fps, dur):
