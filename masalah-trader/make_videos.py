@@ -228,6 +228,15 @@ def phone(path, h):
     sca = sc.convert("RGBA"); sca.putalpha(m); out.alpha_composite(sca, (40 + bz, 40 + bz))
     return out
 
+IFANG_PATH = os.path.join(HERE, "..", "promo", "assets", "ifangfx_logo.png")
+def ifang_badge(size, border=True):
+    """Logo iFang FX dalam lencana bucu bulat (bingkai emas)."""
+    im = Image.open(IFANG_PATH).convert("RGBA").resize((size, size), Image.LANCZOS)
+    m = Image.new("L", (size, size), 0); ImageDraw.Draw(m).rounded_rectangle([0, 0, size - 1, size - 1], size // 5, fill=255)
+    im.putalpha(Image.fromarray(np.minimum(np.array(im.getchannel("A")), np.array(m))))
+    if border: ImageDraw.Draw(im).rounded_rectangle([1, 1, size - 2, size - 2], size // 5, outline=GOLD + (255,), width=max(2, size // 40))
+    return im
+
 # ---------------- scene renderers ----------------
 class Renderer:
     def __init__(self, i, topic, lines, scenes, dur):
@@ -235,7 +244,9 @@ class Renderer:
         accent = COL["red"]
         self.bg, self.strip = make_bg(accent, i + 7)
         self.top = Image.new("RGBA", (W, 200), (0, 0, 0, 0)); d = ImageDraw.Draw(self.top)
-        d.text((60, 92), topic.get("series", "MASALAH TRADER MALAYSIA"), font=font("Bold", 34), fill=MUTED)
+        self.top.alpha_composite(ifang_badge(84), (60, 66))
+        d.text((164, 92), topic.get("series", "MASALAH TRADER MALAYSIA"), font=font("Bold", 34), fill=MUTED)
+        self.ifang_big = ifang_badge(230)
         if "series" not in topic:
             p = pill(f"#{i + 1:02d}/{N}", font("Bold", 34), BG, GOLD, padx=22, pady=10)
             self.top.alpha_composite(p, (W - 60 - p.width, 82))
@@ -303,6 +314,7 @@ class Renderer:
         self.hook(img, t, self.scene_alpha(t, "hook"))
         for si in range(len(self.tp["sections"])): self.section(img, t, si, self.scene_alpha(t, f"s{si}"))
         self.outro(img, t, self.scene_alpha(t, "outro"))
+        self.ifang_outro(img, t, self.scene_alpha(t, "outro"))
         self.presenter(img, t)
         self.captions(img, t)
         put(img, self.brand, (W - self.brand.width) / 2, H - 120, 1)
@@ -412,6 +424,15 @@ class Renderer:
         fl2 = fl.resize((int(fl.width * pulse), int(fl.height * pulse)), Image.LANCZOS)
         put(img, fl2, W / 2 + 160 - fl2.width / 2, y + 340 - (fl2.height - fl.height) / 2, a)
 
+    def ifang_outro(self, img, t, a):
+        """Logo iFang FX besar berpusing masuk (3D) di babak penutup."""
+        if a <= 0: return
+        ol = [l for l in self.lines if l["scene"] == "outro"]
+        e = fx.back(seg(t, ol[1]["t0"] - 0.1, ol[1]["t0"] + 0.6))
+        if e <= 0: return
+        fx.warp3d(img, self.ifang_big, 875, 1440, ry=-90 * (1 - min(1, e)) + 10 * math.sin(t * 1.3), rx=4 * math.sin(t),
+                  scale=max(0.05, e), a=a * min(1, e * 1.5))
+
     def outro(self, img, t, a):
         if a <= 0: return
         ol = [l for l in self.lines if l["scene"] == "outro"]
@@ -438,7 +459,7 @@ class Renderer:
         fl = pill(f"Follow  {BRAND}", font("Bold", 50), BG, WHITE, padx=44, pady=20)
         pulse = 1 + 0.03 * math.sin(t * 6)
         fl2 = fl.resize((int(fl.width * pulse), int(fl.height * pulse)), Image.LANCZOS)
-        put(img, fl2, (W - fl2.width) / 2, y + 360 - (fl2.height - fl.height) / 2, a * e2)
+        put(img, fl2, W / 2 + 150 - fl2.width / 2, y + 360 - (fl2.height - fl.height) / 2, a * e2)
 
     def captions(self, img, t):
         cur = next((c for c in self.words if c["t0"] - 0.05 <= t < max(c["t1"], min(c["line_end"], c["t1"] + 0.3))), None)
