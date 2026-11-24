@@ -13,6 +13,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 from topics import TOPICS
+from avatar import Avatar, mouth_track
 
 W, H, FPS, SR = 1080, 1920, 30, 44100
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -105,7 +106,7 @@ def build_timeline(i, topic):
     scenes = {}
     for l in lines:
         s = scenes.setdefault(l["scene"], [l["t0"], l["t1"]]); s[1] = l["t1"]
-    return lines, scenes, mix.clip(-1, 1), dur
+    return lines, scenes, mix.clip(-1, 1), dur, voice
 
 # ---------------- drawing helpers ----------------
 def wrap(text, f, maxw):
@@ -186,6 +187,7 @@ class Renderer:
             for ii, (txt, _) in enumerate(items):
                 self.cards[(si, ii)] = (self.card(ii + 1, txt, COL[cname], True), self.card(ii + 1, txt, COL[cname], False))
         self.words = self.caption_words()
+        self.av = Avatar(400)
 
     def card(self, n, txt, color, active):
         f = font("SemiBold", 52); tb = text_block(txt, f, WHITE if active else (225, 228, 236), 740, align="left")
@@ -232,6 +234,7 @@ class Renderer:
         self.hook(img, t, self.scene_alpha(t, "hook"))
         for si in range(len(self.tp["sections"])): self.section(img, t, si, self.scene_alpha(t, f"s{si}"))
         self.outro(img, t, self.scene_alpha(t, "outro"))
+        self.presenter(img, t)
         self.captions(img, t)
         put(img, self.brand, (W - self.brand.width) / 2, H - 120, 1)
         return img.convert("RGB")
@@ -276,11 +279,11 @@ class Renderer:
         warn = pill("INGAT", font("Bold", 46), BG, GOLD, padx=34, pady=16)
         put(img, warn, (W - warn.width) / 2, 360, a * e)
         tb = text_block("Trading berisiko tinggi. Bukan nasihat kewangan.", font("ExtraBold", 74), WHITE, 900)
-        put(img, tb, (W - tb.width) / 2, 490 + 30 * (1 - e), a * e)
+        put(img, tb, (W - tb.width) / 2, 450 + 30 * (1 - e), a * e)
         e2 = ease(seg(t, ol[1]["t0"] - 0.2, ol[1]["t0"] + 0.3))
         if e2 <= 0: return
         nxt = TOPICS[self.i + 1]["title"] if self.i + 1 < N else None
-        y = 520 + tb.height + 80
+        y = 480 + tb.height + 50
         box = Image.new("RGBA", (940, 300), (0, 0, 0, 0)); d = ImageDraw.Draw(box)
         d.rounded_rectangle([0, 0, 939, 299], 36, fill=(255, 255, 255, 18), outline=GOLD + (255,), width=3)
         lab = (f"SETERUSNYA  ·  #{self.i + 2:02d}" if nxt else "SIMPAN & SHARE")
@@ -300,7 +303,7 @@ class Renderer:
         k = int(np.searchsorted(cur["wt"], t, side="right")) - 1
         rows = wrap(" ".join(cur["words"]), f, 960)
         # tetapkan warna setiap perkataan; perkataan aktif berwarna emas
-        widx, y = 0, 1500 - (len(rows) - 1) * 40
+        widx, y = 0, 1555 - (len(rows) - 1) * 40
         layer = Image.new("RGBA", (W, 260), (0, 0, 0, 0)); d = ImageDraw.Draw(layer)
         for r, row in enumerate(rows):
             ws = row.split(); x = (W - f.getlength(row)) / 2
@@ -310,15 +313,34 @@ class Renderer:
         pop = ease(seg(t, cur["t0"] - 0.05, cur["t0"] + 0.12))
         img.alpha_composite(fade(layer, pop), (0, int(y + 14 * (1 - pop))))
 
+    def presenter(self, img, t):
+        """Pembentang 3D: besar di tengah semasa hook, kemudian beralih ke penjuru kiri bawah."""
+        k = min(int(t * FPS), len(self.mouth) - 1)
+        av = self.av.render(t, self.mouth[k], self.energy[k])
+        s0 = self.sc["s0"][0]
+        e = ease(seg(t, s0 - 0.9, s0 - 0.1))
+        intro = ease(seg(t, 0.0, 0.6))
+        w = 400 + (270 - 400) * e
+        cx = W / 2 + (30 + 135 - W / 2) * e
+        top = 1040 + (1185 - 1040) * e + 80 * (1 - intro)
+        if abs(w - 400) > 0.5: av = av.resize((int(w), int(av.height * w / 400)), Image.LANCZOS)
+        # cakera emas di belakang pembentang
+        disc = Image.new("RGBA", av.size, (0, 0, 0, 0)); dd = ImageDraw.Draw(disc)
+        r = av.width * 0.46; c = (av.width / 2, av.height * 0.42)
+        dd.ellipse([c[0] - r, c[1] - r, c[0] + r, c[1] + r], fill=GOLD + (40,), outline=GOLD + (150,), width=3)
+        put(img, disc, cx - av.width / 2, top, intro)
+        put(img, av, cx - av.width / 2, top, intro)
+
 # ---------------- render ----------------
 def render(i):
     topic = TOPICS[i]
-    lines, scenes, mix, dur = build_timeline(i, topic)
+    lines, scenes, mix, dur, voice = build_timeline(i, topic)
     os.makedirs(OUT, exist_ok=True)
     wav = os.path.join(OUT, f"_{topic['slug']}.wav")
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "f32le", "-ar", str(SR), "-ac", "1", "-i", "-", wav],
                    input=mix.astype(np.float32).tobytes(), check=True)
     R = Renderer(i, topic, lines, scenes, dur)
+    R.mouth, R.energy = mouth_track(voice, SR, FPS, dur + 1)
     mp4 = os.path.join(OUT, f"{topic['slug']}.mp4")
     ff = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
                            "-r", str(FPS), "-i", "-", "-i", wav, "-c:v", "libx264", "-preset", "medium", "-crf", "23",
