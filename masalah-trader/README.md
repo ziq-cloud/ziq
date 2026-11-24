@@ -1,6 +1,6 @@
 # Masalah Trader Malaysia — siri video (10 topik)
 
-Video menegak 9:16 (1080x1920), suara BM (`ms-MY-OsmanNeural`), sari kata gaya TikTok, ~50–60 saat setiap satu.
+Video menegak 9:16 (1080x1920), suara BM santai (ElevenLabs "Daud M – Malay Influencer"), pembentang 3D, sari kata gaya TikTok, ~40–47 saat setiap satu.
 Fail dalam `out/`: `<slug>.mp4` + `<slug>.jpg` (cover).
 
 | # | Topik | Fail |
@@ -22,7 +22,7 @@ Struktur setiap video: hook → "Masalah #N" → 3 tanda/sebab → 3 langkah "Ap
 
 - Teks skrin dan narasi: `topics.py` (narasi eja nombor dalam perkataan supaya TTS sebut betul).
 - Render: `python3 make_videos.py` (semua) atau `python3 make_videos.py 4` (topik #4 sahaja).
-- Env: `VOICE=ms-MY-YasminNeural` (suara perempuan), `BRAND=...`, `RATE=+4%`, `JOBS=4`.
+- Env: `VOICE=<voice_id ElevenLabs>` (cth. `jtEc6V0BMZoMqpAMRJbl` Rizal) atau `VOICE=ms-MY-OsmanNeural` (edge-tts percuma), `BRAND=...`, `RATE=+4%`, `JOBS=4`.
 - Suara disimpan dalam `voice/<VOICE>/` (cache); suara baru perlu akses ke `speech.platform.bing.com`.
 
 ## Caption cadangan
