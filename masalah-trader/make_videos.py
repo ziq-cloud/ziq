@@ -4,7 +4,7 @@ Usage:
   python3 make_videos.py              # semua topik
   python3 make_videos.py 3 5          # topik #3 dan #5 sahaja
 Env: VOICE (default ElevenLabs "Daud M - Malay Influencer"; nama suara edge-tts seperti ms-MY-OsmanNeural pun boleh),
-     ELEVENLABS_API_KEY, RATE (edge-tts sahaja, default +4%), BRAND (default "iFang FX"), JOBS (default 4)
+     ELEVENLABS_API_KEY, RATE (edge-tts sahaja, default +4%), JOBS (default 4)
 Output: out/<slug>.mp4 dan out/<slug>.jpg (cover)
 Perlu: ffmpeg, edge-tts (akses rangkaian ke speech.platform.bing.com untuk suara baru).
 """
@@ -24,7 +24,6 @@ OUT = os.path.join(HERE, "out")
 VOICE = os.environ.get("VOICE", "dNnVzcebCLVAswzGKvfO")  # ElevenLabs: Daud M - Malay Influencer
 EL_MODEL = os.environ.get("EL_MODEL", "eleven_multilingual_v2")
 RATE = os.environ.get("RATE", "+4%")
-BRAND = os.environ.get("BRAND", "iFang FX")
 VDIR = os.path.join(HERE, "voice", VOICE)
 N = len(TOPICS)
 
@@ -106,8 +105,7 @@ def build_timeline(i, topic):
     for si, sec in enumerate(topic["sections"]):
         for ii, (_, nar) in enumerate(sec[2]):
             script.append((f"s{si}", ii, nar))
-    outro = topic.get("outro") or ["Ingat ye, trading ni risiko dia tinggi. Video ni bukan nasihat kewangan.",
-                                   f"Follow tau. Next video, pasal {nxt}." if nxt else "Save video ni, share dekat member trader korang."]
+    outro = topic.get("outro") or ["Ingat ye, trading ni risiko dia tinggi. Video ni bukan nasihat kewangan."]
     for o in outro: script.append(("outro", None, o))
     clips, lines, cur, prev_scene = [], [], 0.35, None
     for k, (scene, item, text) in enumerate(script):
@@ -115,7 +113,7 @@ def build_timeline(i, topic):
         a = tts(text, script[k - 1][2] if k else "", script[k + 1][2] if k + 1 < len(script) else "")
         lines.append(dict(text=text.replace(".", ". ").replace("  ", " ").strip(), t0=cur, t1=cur + len(a) / SR, scene=scene, item=item))
         clips.append((cur, a)); cur += len(a) / SR + 0.32; prev_scene = scene
-    dur = cur + 1.2
+    dur = cur + 2.2  # masa untuk logo penutup
     voice = np.zeros(int(dur * SR) + SR, np.float32)
     for t0, a in clips:
         s = int(t0 * SR); voice[s:s + len(a)] += a
@@ -135,6 +133,10 @@ def build_timeline(i, topic):
         s = scenes.setdefault(l["scene"], [l["t0"], l["t1"]]); s[1] = l["t1"]
     return lines, scenes, mix.clip(-1, 1), dur, voice
 
+def logo_time(topic, lines):
+    ol = [l for l in lines if l["scene"] == "outro"]
+    return ol[1]["t0"] - 0.1 if len(ol) > 1 else ol[0]["t1"] - 0.6
+
 def sfx_events(topic, lines):
     """(masa, jenis, gain) untuk SFX; dipadankan dengan efek visual dalam Renderer.fx_plan."""
     ev = [(0.42, "boom", 0.55), (0.1, "riser", 0.5)]
@@ -151,7 +153,7 @@ def sfx_events(topic, lines):
         if l["scene"].startswith("s"): ev.append((l["t0"] - 0.05, "pop", 0.35))
         seen.add(l["scene"])
     ol = [l for l in lines if l["scene"] == "outro"]
-    if len(ol) > 1: ev.append((ol[1]["t0"] - 0.1, "ding", 0.6))
+    ev.append((logo_time(topic, lines), "ding", 0.6))
     return ev
 
 # ---------------- drawing helpers ----------------
@@ -246,11 +248,10 @@ class Renderer:
         self.top = Image.new("RGBA", (W, 200), (0, 0, 0, 0)); d = ImageDraw.Draw(self.top)
         self.top.alpha_composite(ifang_badge(84), (60, 66))
         d.text((164, 92), topic.get("series", "MASALAH TRADER MALAYSIA"), font=font("Bold", 34), fill=MUTED)
-        self.ifang_big = ifang_badge(230)
+        self.ifang_big = ifang_badge(230 if "cta" in topic else 330)
         if "series" not in topic:
             p = pill(f"#{i + 1:02d}/{N}", font("Bold", 34), BG, GOLD, padx=22, pady=10)
             self.top.alpha_composite(p, (W - 60 - p.width, 82))
-        self.brand = text_block(BRAND, font("Bold", 30), (255, 255, 255, 120), 400)
         random.seed(i)
         self.parts = [(random.uniform(0, W), random.uniform(0, H), random.uniform(10, 40), random.uniform(1.5, 4)) for _ in range(40)]
         # kad bullet (dua keadaan: aktif / pasif)
@@ -317,7 +318,6 @@ class Renderer:
         self.ifang_outro(img, t, self.scene_alpha(t, "outro"))
         self.presenter(img, t)
         self.captions(img, t)
-        put(img, self.brand, (W - self.brand.width) / 2, H - 120, 1)
         return self.post(img.convert("RGB"), t)
 
     def fx_plan(self):
@@ -427,10 +427,11 @@ class Renderer:
     def ifang_outro(self, img, t, a):
         """Logo iFang FX besar berpusing masuk (3D) di babak penutup."""
         if a <= 0: return
-        ol = [l for l in self.lines if l["scene"] == "outro"]
-        e = fx.back(seg(t, ol[1]["t0"] - 0.1, ol[1]["t0"] + 0.6))
+        tl = logo_time(self.tp, self.lines)
+        e = fx.back(seg(t, tl, tl + 0.7))
         if e <= 0: return
-        fx.warp3d(img, self.ifang_big, 875, 1440, ry=-90 * (1 - min(1, e)) + 10 * math.sin(t * 1.3), rx=4 * math.sin(t),
+        x, y = (875, 1440) if "cta" in self.tp else (W / 2, 960)
+        fx.warp3d(img, self.ifang_big, x, y, ry=-90 * (1 - min(1, e)) + 10 * math.sin(t * 1.3), rx=4 * math.sin(t),
                   scale=max(0.05, e), a=a * min(1, e * 1.5))
 
     def outro(self, img, t, a):
@@ -444,22 +445,10 @@ class Renderer:
         if "cta" in self.tp:
             sub = text_block("TRAXA alat bantu analisis, bukan jaminan untung.", font("Medium", 36), MUTED, 980)
             put(img, sub, (W - sub.width) / 2, 470 + tb.height + 30 * (1 - e), a * e); tb = Image.new("RGBA", (1, tb.height + 70))
+        if "cta" not in self.tp: return  # siri: tiada Follow / Seterusnya, logo sahaja
         e2 = ease(seg(t, ol[1]["t0"] - 0.2, ol[1]["t0"] + 0.3))
         if e2 <= 0: return
-        if "cta" in self.tp: return self.cta(img, t, a * e2, 880, e2)
-        nxt = TOPICS[self.i + 1]["title"] if self.i + 1 < N else None
-        y = 480 + tb.height + 50
-        box = Image.new("RGBA", (940, 300), (0, 0, 0, 0)); d = ImageDraw.Draw(box)
-        d.rounded_rectangle([0, 0, 939, 299], 36, fill=(255, 255, 255, 18), outline=GOLD + (255,), width=3)
-        lab = (f"SETERUSNYA  ·  #{self.i + 2:02d}" if nxt else "SIMPAN & SHARE")
-        d.text((50, 44), lab, font=font("Bold", 36), fill=GOLD)
-        bt = text_block(nxt or "Share dengan kawan trader kau", font("Bold", 58), WHITE, 840, align="left")
-        box.alpha_composite(bt, (50, 110))
-        put(img, box, 70, y + 40 * (1 - e2), a * e2)
-        fl = pill(f"Follow  {BRAND}", font("Bold", 50), BG, WHITE, padx=44, pady=20)
-        pulse = 1 + 0.03 * math.sin(t * 6)
-        fl2 = fl.resize((int(fl.width * pulse), int(fl.height * pulse)), Image.LANCZOS)
-        put(img, fl2, W / 2 + 150 - fl2.width / 2, y + 360 - (fl2.height - fl.height) / 2, a * e2)
+        return self.cta(img, t, a * e2, 880, e2)
 
     def captions(self, img, t):
         cur = next((c for c in self.words if c["t0"] - 0.05 <= t < max(c["t1"], min(c["line_end"], c["t1"] + 0.3))), None)
