@@ -3,7 +3,7 @@
 Usage:
   python3 make_videos.py              # semua topik
   python3 make_videos.py 3 5          # topik #3 dan #5 sahaja
-Env: VOICE (default ElevenLabs "Daud M - Malay Influencer"; nama suara edge-tts seperti ms-MY-OsmanNeural pun boleh),
+Env: LOGO=1 (letak logo iFang FX; default tiada branding), VOICE (default ElevenLabs "Daud M - Malay Influencer"; nama suara edge-tts seperti ms-MY-OsmanNeural pun boleh),
      ELEVENLABS_API_KEY, RATE (edge-tts sahaja, default +4%), JOBS (default 4)
 Output: out/<slug>.mp4 dan out/<slug>.jpg (cover)
 Perlu: ffmpeg, edge-tts (akses rangkaian ke speech.platform.bing.com untuk suara baru).
@@ -25,6 +25,7 @@ VOICE = os.environ.get("VOICE", "dNnVzcebCLVAswzGKvfO")  # ElevenLabs: Daud M - 
 EL_MODEL = os.environ.get("EL_MODEL", "eleven_multilingual_v2")
 RATE = os.environ.get("RATE", "+4%")
 VDIR = os.path.join(HERE, "voice", VOICE)
+LOGO = os.environ.get("LOGO", "0") == "1"  # LOGO=1 untuk letak logo iFang FX; default tanpa branding
 N = len(TOPICS)
 
 FD = "/usr/share/fonts/opentype/inter/"
@@ -113,7 +114,7 @@ def build_timeline(i, topic):
         a = tts(text, script[k - 1][2] if k else "", script[k + 1][2] if k + 1 < len(script) else "")
         lines.append(dict(text=text.replace(".", ". ").replace("  ", " ").strip(), t0=cur, t1=cur + len(a) / SR, scene=scene, item=item))
         clips.append((cur, a)); cur += len(a) / SR + 0.32; prev_scene = scene
-    dur = cur + 2.2  # masa untuk logo penutup
+    dur = cur + (2.2 if LOGO else 1.2)  # masa untuk logo penutup
     voice = np.zeros(int(dur * SR) + SR, np.float32)
     for t0, a in clips:
         s = int(t0 * SR); voice[s:s + len(a)] += a
@@ -153,7 +154,7 @@ def sfx_events(topic, lines):
         if l["scene"].startswith("s"): ev.append((l["t0"] - 0.05, "pop", 0.35))
         seen.add(l["scene"])
     ol = [l for l in lines if l["scene"] == "outro"]
-    ev.append((logo_time(topic, lines), "ding", 0.6))
+    if LOGO: ev.append((logo_time(topic, lines), "ding", 0.6))
     return ev
 
 # ---------------- drawing helpers ----------------
@@ -246,8 +247,8 @@ class Renderer:
         accent = COL["red"]
         self.bg, self.strip = make_bg(accent, i + 7)
         self.top = Image.new("RGBA", (W, 200), (0, 0, 0, 0)); d = ImageDraw.Draw(self.top)
-        self.top.alpha_composite(ifang_badge(84), (60, 66))
-        d.text((164, 92), topic.get("series", "MASALAH TRADER MALAYSIA"), font=font("Bold", 34), fill=MUTED)
+        if LOGO: self.top.alpha_composite(ifang_badge(84), (60, 66))
+        d.text((164 if LOGO else 60, 92), topic.get("series", "MASALAH TRADER MALAYSIA"), font=font("Bold", 34), fill=MUTED)
         self.ifang_big = ifang_badge(230 if "cta" in topic else 330)
         random.seed(i)
         self.parts = [(random.uniform(0, W), random.uniform(0, H), random.uniform(10, 40), random.uniform(1.5, 4)) for _ in range(40)]
@@ -312,7 +313,7 @@ class Renderer:
         self.hook(img, t, self.scene_alpha(t, "hook"))
         for si in range(len(self.tp["sections"])): self.section(img, t, si, self.scene_alpha(t, f"s{si}"))
         self.outro(img, t, self.scene_alpha(t, "outro"))
-        self.ifang_outro(img, t, self.scene_alpha(t, "outro"))
+        if LOGO: self.ifang_outro(img, t, self.scene_alpha(t, "outro"))
         self.presenter(img, t)
         self.captions(img, t)
         return self.post(img.convert("RGB"), t)

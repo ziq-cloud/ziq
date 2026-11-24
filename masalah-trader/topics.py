@@ -249,4 +249,275 @@ TOPICS = [
             ]),
         ],
     },
+    # ---------------- topik tambahan ----------------
+    {
+        "slug": "11_overtrading",
+        "title": "Overtrading",
+        "hook": ("Wajib trade setiap hari?",
+                 "Rasa wajib masuk trade setiap hari? Tu bukan rajin. Tu overtrading."),
+        "sections": [
+            ("TANDA-TANDA", RED, [
+                ("Trade walaupun takde setup", "Korang masuk trade, walaupun setup takde pun."),
+                ("Belasan trade sehari", "Sehari boleh belasan trade. Spread je dah makan banyak."),
+                ("Rasa rugi kalau tak trade", "Rasa macam rugi, kalau satu hari tak buka trade."),
+            ]),
+            ("APA NAK BUAT", GREEN, [
+                ("Tunggu setup terbaik je", "Tunggu setup terbaik je. Yang lain, skip."),
+                ("Set had trade harian", "Set had trade harian, dan patuh."),
+                ("Tak trade = satu keputusan", "Ingat, tak trade pun, satu keputusan yang bijak."),
+            ]),
+        ],
+    },
+    {
+        "slug": "12_untung_cepat_tutup_loss_dibiar",
+        "title": "Untung cepat tutup, loss dibiar",
+        "hook": ("Untung RM20 tutup. Loss RM200 biar?",
+                 "Untung dua puluh ringgit, terus tutup. Tapi loss dua ratus ringgit, biar je?"),
+        "sections": [
+            ("MASALAHNYA", RED, [
+                ("Takut untung hilang", "Korang takut untung tu hilang, jadi cepat-cepat tutup."),
+                ("Harap loss patah balik", "Tapi bila loss, harap harga patah balik."),
+                ("Banyak menang, akaun tetap turun", "Last-last, menang banyak kali pun, akaun tetap turun."),
+            ]),
+            ("APA NAK BUAT", GREEN, [
+                ("Tetapkan target sebelum entry", "Tetapkan target untung, sebelum masuk trade."),
+                ("Risk reward minimum 1:2", "Cari setup dengan risk reward, sekurang-kurangnya satu nisbah dua."),
+                ("Biar SL & TP yang tutup", "Biar stop loss dengan take profit yang tutup. Bukan emosi."),
+            ]),
+        ],
+    },
+    {
+        "slug": "13_takde_trading_plan",
+        "title": "Takde trading plan",
+        "hook": ("Masuk ikut feeling?",
+                 "Masuk trade ikut feeling. Keluar pun, ikut feeling."),
+        "sections": [
+            ("MASALAHNYA", RED, [
+                ("Tak tahu bila nak keluar", "Dah masuk, tapi tak tahu bila nak keluar."),
+                ("Saiz lot ikut mood", "Saiz lot pun, ikut mood hari tu."),
+                ("Takde apa boleh diukur", "Takde plan, so takde apa yang boleh diukur."),
+            ]),
+            ("APA NAK BUAT", GREEN, [
+                ("Tulis: setup, entry, SL, TP", "Tulis plan. Setup apa, entry kat mana, stop loss, take profit."),
+                ("Tetapkan risiko setiap trade", "Tetapkan risiko, untuk setiap trade."),
+                ("Ikut plan, bukan feeling", "Lepas tu, ikut plan. Bukan feeling."),
+            ]),
+        ],
+    },
+    {
+        "slug": "14_ego_salahkan_market",
+        "title": "Ego, salahkan market",
+        "hook": ("Broker tipu! Market manipulasi!",
+                 "Broker tipu. Market manipulasi. Semua salah orang lain, kecuali kita?"),
+        "sections": [
+            ("TANDA-TANDA", RED, [
+                ("Salahkan broker & berita", "Bila loss, terus salahkan broker, berita, atau market maker."),
+                ("Tak nak cut loss", "Ego tak nak mengaku salah, jadi tak nak cut loss."),
+                ("Tak belajar apa-apa", "Akhirnya, takde apa yang dipelajari."),
+            ]),
+            ("APA NAK BUAT", GREEN, [
+                ("Loss = data, bukan hinaan", "Anggap loss tu data. Bukan hinaan."),
+                ("Salah plan, atau tak ikut plan?", "Review. Plan yang salah, atau kita yang tak ikut plan?"),
+                ("Market tak kenal korang", "Ingat, market tak kenal korang pun. Takde siapa nak tipu korang secara peribadi."),
+            ]),
+        ],
+    },
+    {
+        "slug": "15_nak_cepat_kaya",
+        "title": "Nak cepat kaya",
+        "hook": ("Nak double akaun minggu ni?",
+                 "Target nak double akaun, dalam seminggu?"),
+        "sections": [
+            ("KENAPA BAHAYA", RED, [
+                ("Target tak realistik", "Target tak realistik, buat korang ambil risiko melampau."),
+                ("Lot naik setiap kali menang", "Setiap kali menang, lot naik."),
+                ("Satu loss, semua hilang", "Satu loss besar, semua hilang."),
+            ]),
+            ("APA NAK BUAT", GREEN, [
+                ("Fokus proses, bukan duit", "Fokus pada proses, bukan duit."),
+                ("Kompaun perlahan-lahan", "Biar akaun membesar perlahan-lahan. Kompaun tu kawan."),
+                ("Survive dulu, baru kaya", "Survive dulu dalam market. Baru boleh fikir pasal kaya."),
+            ]),
+        ],
+    },
+    {
+        "slug": "16_terlalu_banyak_indikator",
+        "title": "Chart penuh indikator",
+        "hook": ("Chart ke lukisan abstrak?",
+                 "Chart korang ni, chart ke lukisan abstrak?"),
+        "sections": [
+            ("MASALAHNYA", RED, [
+                ("Isyarat bercanggah", "Sepuluh indikator, semua bagi isyarat lain-lain."),
+                ("Lambat buat keputusan", "Last-last, lambat buat keputusan."),
+                ("Tak nampak harga sebenar", "Sampai tak nampak, harga tu sebenarnya buat apa."),
+            ]),
+            ("APA NAK BUAT", GREEN, [
+                ("Mula dengan chart bersih", "Mula dengan chart bersih. Harga, struktur, dan level."),
+                ("Satu dua indikator je", "Kalau nak guna, satu atau dua indikator je."),
+                ("Faham fungsi setiap satu", "Dan faham, apa fungsi setiap satu."),
+            ]),
+        ],
+    },
+    {
+        "slug": "17_trade_masa_berita",
+        "title": "Trade masa berita besar",
+        "hook": ("Berita keluar, terus masuk?",
+                 "Berita besar keluar, terus tekan masuk?"),
+        "sections": [
+            ("APA YANG BERLAKU", RED, [
+                ("Spread melebar tiba-tiba", "Masa berita, spread boleh melebar tiba-tiba."),
+                ("Slippage, SL terlompat", "Kena slippage. Stop loss pun boleh terlompat."),
+                ("Harga naik turun gila", "Harga naik turun gila, dua-dua arah."),
+            ]),
+            ("APA NAK BUAT", GREEN, [
+                ("Semak kalendar ekonomi", "Semak kalendar ekonomi, setiap pagi."),
+                ("Elak entry dekat masa berita", "Elak masuk trade, dekat-dekat masa berita."),
+                ("Tunggu harga tenang", "Tunggu harga tenang dulu, baru cari setup."),
+            ]),
+        ],
+    },
+    {
+        "slug": "18_abaikan_timeframe_besar",
+        "title": "Abaikan timeframe besar",
+        "hook": ("Entry M1, lawan trend Daily?",
+                 "Entry kat M1, tapi lawan trend Daily?"),
+        "sections": [
+            ("APA YANG BERLAKU", RED, [
+                ("Nampak 'reversal' kat M1", "Kat M1, nampak macam reversal."),
+                ("Trend besar masih kuat", "Padahal, trend besar masih kuat."),
+                ("Kena langgar trend", "Last-last, kena langgar dengan trend."),
+            ]),
+            ("APA NAK BUAT", GREEN, [
+                ("Analisis dari timeframe besar", "Mula analisis dari timeframe besar dulu."),
+                ("Ikut arah trend utama", "Ikut arah trend utama."),
+                ("Timeframe kecil untuk entry je", "Timeframe kecil, guna untuk entry je."),
+            ]),
+        ],
+    },
+    {
+        "slug": "19_backtest_syok_sendiri",
+        "title": "Backtest syok sendiri",
+        "hook": ("Backtest +300%, live burn?",
+                 "Backtest untung tiga ratus peratus. Masuk live, burn."),
+        "sections": [
+            ("MASALAHNYA", RED, [
+                ("Pilih contoh cantik je", "Pilih contoh yang cantik-cantik je."),
+                ("Ubah rules ikut keputusan", "Tukar rules, sampai keputusan nampak cantik."),
+                ("Lupa spread & slippage", "Lupa kira spread, komisen, dan slippage."),
+            ]),
+            ("APA NAK BUAT", GREEN, [
+                ("Uji data yang banyak", "Uji dengan data yang banyak, termasuk masa market teruk."),
+                ("Rules tetap sebelum uji", "Tetapkan rules sebelum uji. Jangan ubah lepas tengok keputusan."),
+                ("Forward test di demo", "Lepas tu, forward test kat demo dulu."),
+            ]),
+        ],
+    },
+    {
+        "slug": "20_kos_tersembunyi",
+        "title": "Kos tersembunyi",
+        "hook": ("Selalu untung, akaun tak naik?",
+                 "Rasa selalu untung, tapi akaun tak naik-naik?"),
+        "sections": [
+            ("KOS YANG KORANG LUPA", RED, [
+                ("Spread setiap kali entry", "Setiap kali entry, korang dah bayar spread."),
+                ("Komisen & swap", "Tambah lagi komisen, dengan swap kalau hold overnight."),
+                ("Scalping kecil, kos besar", "Scalping target kecil, kos dia makan sebahagian besar untung."),
+            ]),
+            ("APA NAK BUAT", GREEN, [
+                ("Kira kos sebelum entry", "Kira kos, sebelum masuk trade."),
+                ("Pilih akaun & pair kos rendah", "Pilih jenis akaun dan pair, yang kos dia rendah."),
+                ("Target jauh lebih besar dari kos", "Pastikan target, jauh lebih besar dari kos."),
+            ]),
+        ],
+    },
+    {
+        "slug": "21_tak_reti_urus_untung",
+        "title": "Tak reti urus untung",
+        "hook": ("Untung, tapi tak pernah withdraw?",
+                 "Untung sikit, terus withdraw semua. Atau, tak pernah withdraw langsung?"),
+        "sections": [
+            ("MASALAHNYA", RED, [
+                ("Withdraw semua, akaun tak membesar", "Withdraw semua untung, akaun tak pernah membesar."),
+                ("Tak pernah withdraw", "Atau tak pernah withdraw. Last-last, hangus dalam market."),
+                ("Takde sistem", "Dua-dua, sebab takde sistem."),
+            ]),
+            ("APA NAK BUAT", GREEN, [
+                ("Tetapkan peratus withdraw", "Tetapkan peratus. Contoh, separuh untung withdraw, separuh biar."),
+                ("Withdraw ikut jadual", "Withdraw ikut jadual, contoh setiap bulan."),
+                ("Untung sebenar = dalam bank", "Ingat, untung sebenar, bila dah masuk bank."),
+            ]),
+        ],
+    },
+    {
+        "slug": "22_robot_indikator_rahsia",
+        "title": "Beli robot & indikator rahsia",
+        "hook": ("Robot win rate 99%?",
+                 "Robot trading, win rate sembilan puluh sembilan peratus. Harga, dua ribu ringgit?"),
+        "sections": [
+            ("TANDA-TANDA", RED, [
+                ("Backtest cantik, live hancur", "Backtest cantik, tapi live hancur."),
+                ("Martingale tersorok", "Ramai guna martingale. Gandakan lot, bila loss."),
+                ("Penjual untung dari jualan", "Penjual untung dari jual robot, bukan dari trading."),
+            ]),
+            ("APA NAK BUAT", GREEN, [
+                ("Minta rekod live yang disahkan", "Minta rekod live yang verified. Bukan backtest."),
+                ("Uji di demo berbulan", "Uji kat demo, berbulan-bulan dulu."),
+                ("Faham logik robot tu", "Faham logik robot tu. Kalau tak faham, jangan guna."),
+            ]),
+        ],
+    },
+    {
+        "slug": "23_sorok_dari_keluarga",
+        "title": "Sorok trading dari keluarga",
+        "hook": ("Family tak tahu akaun dah burn?",
+                 "Family tak tahu pun, akaun dah burn tiga kali?"),
+        "sections": [
+            ("KENAPA BAHAYA", RED, [
+                ("Stres tanggung seorang", "Stres tu, korang tanggung seorang diri."),
+                ("Duit rumah tangga terguna", "Kadang-kadang, duit rumah tangga pun terguna."),
+                ("Hilang kepercayaan", "Bila terbongkar, kepercayaan yang hilang."),
+            ]),
+            ("APA NAK BUAT", GREEN, [
+                ("Jujur dengan pasangan", "Jujur dengan pasangan, atau keluarga."),
+                ("Bincang had modal bersama", "Bincang sama-sama, berapa had modal yang boleh guna."),
+                ("Asingkan duit trading", "Asingkan duit trading, dari duit keluarga."),
+            ]),
+        ],
+    },
+    {
+        "slug": "24_banding_diri_media_sosial",
+        "title": "Banding diri dengan orang lain",
+        "hook": ("Dia profit RM10k, aku loss lagi?",
+                 "Tengok orang flex profit sepuluh ribu. Kita pulak, loss lagi?"),
+        "sections": [
+            ("MASALAHNYA", RED, [
+                ("Media sosial tunjuk highlight je", "Media sosial tunjuk highlight je. Bukan keseluruhan."),
+                ("Rasa ketinggalan, terus FOMO", "Korang rasa ketinggalan, terus FOMO."),
+                ("Naikkan risiko nak kejar", "Naikkan risiko, nak kejar orang lain."),
+            ]),
+            ("APA NAK BUAT", GREEN, [
+                ("Banding dengan diri semalam", "Bandingkan dengan diri korang semalam. Bukan dengan orang lain."),
+                ("Ukur ikut jurnal sendiri", "Ukur kemajuan, ikut jurnal sendiri."),
+                ("Kurang scroll, banyak belajar", "Kurangkan scroll. Banyakkan belajar."),
+            ]),
+        ],
+    },
+    {
+        "slug": "25_burnout",
+        "title": "Burnout trading 24 jam",
+        "hook": ("Forex, crypto, 24 jam tak rehat?",
+                 "Siang forex, malam crypto. Hujung minggu pun, tengok chart?"),
+        "sections": [
+            ("TANDA-TANDA", RED, [
+                ("Penat, keputusan jadi teruk", "Bila penat, keputusan trading pun jadi teruk."),
+                ("Mudah marah & stres", "Mudah marah, dan sentiasa stres."),
+                ("Kesihatan & keluarga terabai", "Kesihatan dengan keluarga, terabai."),
+            ]),
+            ("APA NAK BUAT", GREEN, [
+                ("Waktu trading tetap", "Tetapkan waktu trading yang tetap."),
+                ("Cuti dari chart", "Ambil cuti dari chart, sekurang-kurangnya sehari seminggu."),
+                ("Tidur, sukan, keluarga", "Tidur cukup, bersukan, dan luangkan masa dengan keluarga."),
+            ]),
+        ],
+    },
 ]
