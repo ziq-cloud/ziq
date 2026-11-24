@@ -17,6 +17,7 @@ from topics import TOPICS
 from avatar import Avatar, mouth_track
 import fx
 from charts import CHARTS
+from softsell import with_softsell
 
 W, H, FPS, SR = 1080, 1920, 30, 44100
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -490,7 +491,7 @@ class Renderer:
 
 # ---------------- render ----------------
 def render(i, topic=None):
-    topic = topic or TOPICS[i]
+    topic = with_softsell(topic or TOPICS[i])
     lines, scenes, mix, dur, voice = build_timeline(i, topic)
     os.makedirs(OUT, exist_ok=True)
     wav = os.path.join(OUT, f"_{topic['slug']}.wav")
@@ -516,6 +517,6 @@ if __name__ == "__main__":
         from traxa import TRAXA
         print("siap:", render(N, TRAXA)); sys.exit()
     idx = [int(a) - 1 for a in sys.argv[1:]] or list(range(N))
-    for i in idx: build_timeline(i, TOPICS[i])  # jana semua suara dulu (berurutan, elak rate-limit)
+    for i in idx: build_timeline(i, with_softsell(TOPICS[i]))  # jana semua suara dulu (berurutan, elak rate-limit)
     with Pool(int(os.environ.get("JOBS", "4"))) as p:
         for r in p.imap_unordered(render, idx): print("siap:", r, flush=True)
