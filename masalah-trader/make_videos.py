@@ -105,7 +105,7 @@ def build_timeline(i, topic):
     for si, sec in enumerate(topic["sections"]):
         for ii, (_, nar) in enumerate(sec[2]):
             script.append((f"s{si}", ii, nar))
-    outro = topic.get("outro") or ["Ingat ye, trading ni risiko dia tinggi. Video ni bukan nasihat kewangan."]
+    outro = topic.get("outro") or ["Ingat ye, trading ni risiko dia tinggi."]
     for o in outro: script.append(("outro", None, o))
     clips, lines, cur, prev_scene = [], [], 0.35, None
     for k, (scene, item, text) in enumerate(script):
@@ -440,7 +440,7 @@ class Renderer:
         e = ease(seg(t, ol[0]["t0"] - 0.4, ol[0]["t0"]))
         warn = pill("INGAT", font("Bold", 46), BG, GOLD, padx=34, pady=16)
         put(img, warn, (W - warn.width) / 2, 360, a * e)
-        tb = text_block("Trading berisiko tinggi. Bukan nasihat kewangan.", font("ExtraBold", 74), WHITE, 900)
+        tb = text_block("Trading berisiko tinggi.", font("ExtraBold", 74), WHITE, 900)
         put(img, tb, (W - tb.width) / 2, 450 + 30 * (1 - e), a * e)
         if "cta" in self.tp:
             sub = text_block("TRAXA alat bantu analisis, bukan jaminan untung.", font("Medium", 36), MUTED, 980)

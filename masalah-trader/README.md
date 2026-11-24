@@ -28,7 +28,7 @@ Struktur setiap video: hook → "Masalah #N" → 3 tanda/sebab → 3 langkah "Ap
 ## Caption cadangan
 
 > Masalah trader Malaysia #N: <topik>. Kau pernah alami? Komen bawah 👇
-> Trading berisiko tinggi. Bukan nasihat kewangan.
+> Trading berisiko tinggi.
 > #forexmalaysia #tradermalaysia #belajartrading
 
 ## Nota fakta
