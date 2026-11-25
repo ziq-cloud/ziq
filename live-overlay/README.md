@@ -1,18 +1,18 @@
 # TRAXA – overlay TikTok LIVE
 
-Overlay animasi dengan maskot robot kartun untuk TikTok LIVE: logo TRAXA + kod jemputan **ZIQFX**, belon cakap yang menaip sendiri, lilin chart terapung, baris amaran risiko, dan pop-up besar "guna kod ZIQFX" setiap beberapa minit.
+Overlay animasi dengan maskot robot kartun untuk TikTok LIVE. Susun atur: **bar atas** (logo, kod, maskot) + **bar bawah** (mesej bergilir, amaran risiko, pop-up kod), **tengah kosong**. Kandungan: logo TRAXA + kod jemputan **ZIQFX**, belon cakap yang menaip sendiri, lilin chart terapung, baris amaran risiko, dan pop-up besar "guna kod ZIQFX" setiap beberapa minit.
 
 ## iPad (TikTok app) – kad terapung PiP
 
-TikTok di iPad tak boleh tambah overlay. Guna video `traxa_pip_bm.mp4` / `traxa_pip_en.mp4` (24 s, berulang) dalam **Picture-in-Picture**:
+TikTok di iPad tak boleh tambah overlay. Guna video jalur nipis `traxa_strip_bm.mp4` / `traxa_strip_en.mp4` (letak di atas, tengah kekal kosong) atau kad besar `traxa_pip_*.mp4` (24 s, berulang). iPad hanya benarkan satu tetingkap terapung, jadi bar atas + bawah serentak hanya untuk PC dalam **Picture-in-Picture**:
 
 1. Buka `pip-player.html` (atau artifact yang diterbitkan) dalam **Safari** iPad → tekan **Jadikan terapung (PiP)**.
 2. Seret kad ke bucu atas, jauh dari komen.
 3. TikTok → LIVE → **Mobile gaming / kongsi skrin** → mula live, buka app TRAXA / chart.
 
 Kad hanya kelihatan dalam mod kongsi skrin (mod kamera tak rakam skrin).
-Jana semula video selepas ubah reka bentuk: `python3 build.py && node render_pip.js bm && node render_pip.js en`.
-Pratonton kad: `overlay.html?mode=pip`.
+Jana semula video selepas ubah reka bentuk: `python3 build.py && node render_pip.js bm ZIQFX strip && node render_pip.js bm ZIQFX pip` (ulang dengan `en`).
+Pratonton: `overlay.html?mode=strip` / `overlay.html?mode=pip`.
 
 `overlay.html` ialah satu fail lengkap (logo & font sudah dimasukkan), tak perlu internet.
 
@@ -48,8 +48,8 @@ Kawasan merah = UI TikTok (nama/viewer di atas, komen di bawah, butang gift di k
 |---|---|---|
 | `code` | `code=ZIQFX` | `ZIQFX` |
 | `lang` | `lang=en` | `bm` |
-| `pos` | `pos=right` | `left` |
-| `y` | `y=320` (px dari atas) | `300` |
+| `top` | `top=260` (bar atas, px dari atas) | `250` |
+| `bottom` | `bottom=980` (bar bawah, px dari atas) | `1000` |
 | `pop` | `pop=5` (minit, `0` = tutup) | `3` |
 | `msgs` | `msgs=Mesej 1|Mesej 2` | 4 mesej default |
 | `preview` | `preview=1` | – |
