@@ -1,0 +1,87 @@
+<title>TRAXA PiP Kad Live</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one column — player on top, iPad steps below; single dark look matching TRAXA gold */
+:root {
+  --bg: #0d0b09; --panel: #1a1612; --fg: #f3ece0; --muted: #b3a894;
+  --gold: #e2b25c; --gold-hi: #ffe296; --line: rgba(226,178,92,.35);
+  --display: "Oxanium", "Segoe UI", system-ui, sans-serif; --body: "Inter", system-ui, sans-serif;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); }
+.wrap { max-width: 760px; margin: 0 auto; padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 22px; }
+h1 { font: 500 28px/1.15 var(--display); letter-spacing: 1px; text-wrap: balance; margin: 0; }
+h1 b { color: var(--gold-hi); font-weight: 500; }
+.lede { color: var(--muted); margin: 0; }
+video { width: 100%; max-width: 100%; aspect-ratio: 16/9; border-radius: 18px; border: 1px solid var(--line); background: #000; display: block; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+button, .btn { font: 600 15px var(--body); padding: 11px 16px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--fg); cursor: pointer; text-decoration: none; }
+button.primary { background: var(--gold); color: #1b1408; border-color: var(--gold); }
+button[aria-pressed="true"] { border-color: var(--gold-hi); color: var(--gold-hi); }
+button:focus-visible, .btn:focus-visible { outline: 3px solid var(--gold-hi); outline-offset: 2px; }
+#status { color: var(--gold-hi); font-size: 14px; min-height: 1.4em; margin: 0; }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 18px 20px; }
+h2 { font: 500 19px var(--display); margin: 0 0 10px; color: var(--gold-hi); }
+ol { margin: 0; padding-left: 1.3em; display: grid; gap: 8px; }
+li { min-width: 0; }
+.note { color: var(--muted); font-size: 14px; margin: 10px 0 0; }
+code { font-size: .92em; color: var(--gold-hi); }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Oxanium:wght@500&display=swap">
+
+<div class="wrap">
+  <div>
+    <h1>Kad terapung <b>TRAXA · ZIQFX</b></h1>
+    <p class="lede">Untuk live TikTok di iPad guna screen share. Video ini terapung di atas skrin (Picture-in-Picture) dan ikut masuk dalam live.</p>
+  </div>
+
+  <video id="v" src="traxa_pip_bm.mp4" playsinline muted loop autoplay controls></video>
+
+  <div class="row">
+    <button id="pip" class="primary">Jadikan terapung (PiP)</button>
+    <button id="lbm" aria-pressed="true">BM</button>
+    <button id="len" aria-pressed="false">English</button>
+    <a id="raw" class="btn" href="traxa_pip_bm.mp4" target="_blank" rel="noopener">Buka video sahaja</a>
+  </div>
+  <p id="status" role="status"></p>
+
+  <section>
+    <h2>Cara guna di iPad</h2>
+    <ol>
+      <li>Buka halaman ini dalam <b>Safari</b> di iPad, tekan <b>Jadikan terapung (PiP)</b>. Kalau butang tak jalan, tekan ikon PiP dalam kawalan video, atau guna <b>Buka video sahaja</b> dan tekan ikon PiP di situ.</li>
+      <li>Kad terapung boleh diseret ke mana-mana bucu dan dicubit untuk besar/kecilkan. Letak di atas, jauh dari kawasan komen di bawah.</li>
+      <li>Buka TikTok → <b>LIVE</b> → pilih <b>Mobile gaming / Kongsi skrin</b> → mula live.</li>
+      <li>Buka app TRAXA atau chart. Kad terapung kekal di atas dan penonton nampak.</li>
+    </ol>
+    <p class="note">Mod LIVE kamera biasa tak rakam skrin, jadi kad terapung hanya muncul dalam mod kongsi skrin. Video berulang setiap 24 saat tanpa bunyi.</p>
+  </section>
+</div>
+
+<script>
+const v = document.getElementById("v"), st = document.getElementById("status");
+const raw = document.getElementById("raw");
+function setLang(l) {
+  const f = `traxa_pip_${l}.mp4`, wasPlaying = !v.paused;
+  v.src = f; raw.href = f; if (wasPlaying) v.play().catch(() => {});
+  document.getElementById("lbm").setAttribute("aria-pressed", l === "bm");
+  document.getElementById("len").setAttribute("aria-pressed", l === "en");
+}
+document.getElementById("lbm").onclick = () => setLang("bm");
+document.getElementById("len").onclick = () => setLang("en");
+document.getElementById("pip").onclick = async () => {
+  try {
+    await v.play().catch(() => {});
+    if (v.webkitSupportsPresentationMode && v.webkitSupportsPresentationMode("picture-in-picture")) {
+      v.webkitSetPresentationMode("picture-in-picture");
+    } else if (document.pictureInPictureEnabled) {
+      await v.requestPictureInPicture();
+    } else throw new Error("no pip");
+    st.textContent = "Kad terapung aktif. Sekarang buka TikTok dan mula live kongsi skrin.";
+  } catch {
+    st.textContent = "PiP tak dibenarkan di sini. Tekan ‘Buka video sahaja’, kemudian ikon PiP dalam kawalan video.";
+  }
+};
+</script>

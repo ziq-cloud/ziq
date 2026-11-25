@@ -1,6 +1,18 @@
 # TRAXA – overlay TikTok LIVE
 
-Overlay telus (1080×1920, menegak) untuk TikTok LIVE: logo TRAXA + kod jemputan **ZIQFX**, mesej bergilir, baris amaran risiko, dan pop-up besar "guna kod ZIQFX" setiap beberapa minit.
+Overlay animasi dengan maskot robot kartun untuk TikTok LIVE: logo TRAXA + kod jemputan **ZIQFX**, belon cakap yang menaip sendiri, lilin chart terapung, baris amaran risiko, dan pop-up besar "guna kod ZIQFX" setiap beberapa minit.
+
+## iPad (TikTok app) – kad terapung PiP
+
+TikTok di iPad tak boleh tambah overlay. Guna video `traxa_pip_bm.mp4` / `traxa_pip_en.mp4` (24 s, berulang) dalam **Picture-in-Picture**:
+
+1. Buka `pip-player.html` (atau artifact yang diterbitkan) dalam **Safari** iPad → tekan **Jadikan terapung (PiP)**.
+2. Seret kad ke bucu atas, jauh dari komen.
+3. TikTok → LIVE → **Mobile gaming / kongsi skrin** → mula live, buka app TRAXA / chart.
+
+Kad hanya kelihatan dalam mod kongsi skrin (mod kamera tak rakam skrin).
+Jana semula video selepas ubah reka bentuk: `python3 build.py && node render_pip.js bm && node render_pip.js en`.
+Pratonton kad: `overlay.html?mode=pip`.
 
 `overlay.html` ialah satu fail lengkap (logo & font sudah dimasukkan), tak perlu internet.
 
