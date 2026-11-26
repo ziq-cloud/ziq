@@ -1,7 +1,7 @@
 """Post ZIQFX outlook text, charts and videos to the Telegram group.
 
 Usage:
-  python3 tg_send.py text  outlooks/2026-11-26.md
+  python3 tg_send.py text  outlooks/2026-11-26.md [--pin]
   python3 tg_send.py photo charts/h1.png "caption"
   python3 tg_send.py video out/ZIQFX_XAUUSD_Outlook_2026-11-26.mp4 "caption"
 
@@ -57,9 +57,22 @@ def send_text(text):
             cur = piece
     if cur:
         chunks.append(cur)
-    for c in chunks:
-        call("sendMessage", {"chat_id": CHAT, "text": c})
-    return len(chunks)
+    ids = [call("sendMessage", {"chat_id": CHAT, "text": c})["message_id"] for c in chunks]
+    return ids
+
+
+def pin(message_id):
+    """Pin a message (bot needs the 'Pin messages' admin right); never fatal."""
+    r = subprocess.run(["curl", "-s", "--max-time", "30", f"https://api.telegram.org/bot{token()}/pinChatMessage",
+                        "--form-string", f"chat_id={CHAT}", "--form-string", f"message_id={message_id}",
+                        "--form-string", "disable_notification=true"], capture_output=True, text=True)
+    try:
+        d = json.loads(r.stdout)
+    except json.JSONDecodeError:
+        d = {"ok": False, "description": r.stdout[:120]}
+    if not d.get("ok"):
+        print(f"pin failed: {d.get('description')}", file=sys.stderr)
+    return d.get("ok", False)
 
 
 def fit_video(path):
@@ -96,9 +109,12 @@ if __name__ == "__main__":
     if len(sys.argv) < 3:
         sys.exit(__doc__)
     kind, path = sys.argv[1], sys.argv[2]
-    cap = sys.argv[3] if len(sys.argv) > 3 else ""
+    cap = sys.argv[3] if len(sys.argv) > 3 and not sys.argv[3].startswith("--") else ""
     if kind == "text":
-        print("messages:", send_text(open(path, encoding="utf-8").read().strip()))
+        ids = send_text(open(path, encoding="utf-8").read().strip())
+        print("messages:", len(ids))
+        if "--pin" in sys.argv[3:]:
+            print("pinned:", pin(ids[0]))
     elif kind == "photo":
         send_photo(path, cap)
         print("photo sent")

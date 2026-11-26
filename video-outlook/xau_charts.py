@@ -36,6 +36,8 @@ def f(w, s):
 
 def market_open(ts):
     """Gold is closed roughly Sat 06:00 -> Mon 07:00 Malaysia time; the feed fills that gap with flat bars."""
+    if len(ts) <= 10:  # daily/weekly bars carry a date only
+        return True
     dt = datetime.strptime(ts[:16], "%Y-%m-%d %H:%M")
     wd, hr = dt.weekday(), dt.hour
     if wd == 5 and hr >= 6:
@@ -114,8 +116,9 @@ def render_one(tf):
         x = X(i)
         for y in range(PLOT_T - 60, PLOT_B, 14):
             d_.line((x, y, x, y + 6), fill=GRID)
-        dt = datetime.strptime(bars[i]["t"][:16], "%Y-%m-%d %H:%M")
-        lab = dt.strftime("%d %b %H:%M")
+        ts = bars[i]["t"]
+        dt = datetime.strptime(ts[:16], "%Y-%m-%d %H:%M") if len(ts) > 10 else datetime.strptime(ts[:10], "%Y-%m-%d")
+        lab = dt.strftime("%d %b %H:%M") if len(ts) > 10 else dt.strftime("%d %b %y")
         tw = d_.textlength(lab, font=f("Medium", 24))
         d_.text((x - tw / 2, PLOT_B + 22), lab, font=f("Medium", 24), fill=AXIS)
     d_.line((PLOT_R, 0, PLOT_R, H), fill=(60, 63, 72), width=2)
