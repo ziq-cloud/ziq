@@ -2,23 +2,35 @@
  "day": "2026-11-26",
  "signals": [
   {
-   "at": "2026-11-26 16:15:00",
+   "skipped": true,
+   "why": "risk 15.2 / TP1 3589.0",
+   "at": "2026-11-26 07:30:00",
+   "setup": "Z3 BUY confirmation 3576\u20133566"
+  },
+  {
+   "at": "2026-11-26 09:30:00",
    "setup": "Z3 SELL continuation 3576\u20133566",
    "side": "SELL",
-   "entry": 3563.9,
+   "entry": 3561.22,
    "sl": 3578.0,
    "tp": [
     3541.0,
     3512.0,
     3484.0
    ],
-   "risk": 14.1,
-   "exit": 3564.99,
-   "exit_at": "2026-11-26 21:00:00",
-   "reason": "cut-off",
+   "risk": 16.78,
+   "exit": 3578.0,
+   "exit_at": "2026-11-26 10:00:00",
+   "reason": "SL",
    "tp_hit": [],
-   "r": -0.08,
-   "pts": -1.09
+   "r": -1.0,
+   "pts": -16.78
+  },
+  {
+   "skipped": true,
+   "why": "risk 28.1 / TP1 3576.0",
+   "at": "2026-11-26 11:00:00",
+   "setup": "Z1 SELL confirmation 3601\u20133612"
   }
  ]
 }

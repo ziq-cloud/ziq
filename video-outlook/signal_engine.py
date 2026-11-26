@@ -5,7 +5,7 @@ Usage:
   python3 signal_engine.py stats                                         # cumulative paper results (signals/*.json)
 
 Rules (fixed, mechanical — so the results are honest and repeatable):
-  • Session window: 15:00–01:00 Malaysia time (London + New York). Max 3 signals per day, one open at a time.
+  • Session window: 07:00–05:00 Malaysia time (Asia + London + New York; skips the illiquid roll-over hours). Max 3 signals per day, one open at a time.
   • SELL confirmation (resistance zone lo–hi): after an M15 candle trades into the zone, the first bearish M15 candle
     (close < open) that closes below the previous candle's low and below the zone top is the trigger.
     Entry = its close. SL = highest high since the zone touch + 2.0. BUY confirmation is the mirror at support.
@@ -13,7 +13,7 @@ Rules (fixed, mechanical — so the results are honest and repeatable):
     and closes bearish below lo is the trigger. SL = zone hi + 2.0. BUY continuation is the mirror.
   • Skip the signal if risk (|entry − SL|) is under 4 or over 25 points, or if reward to TP1 is under 1R.
   • Management on later M15 bars: SL first if a bar touches both (conservative). After TP1, SL moves to entry.
-    Exit at TP3, at SL, or at the 01:00 cut-off close. Result is in R (risk multiples) and points.
+    Exit at TP3, at SL, or at the 05:00 cut-off close. Result is in R (risk multiples) and points.
 """
 import glob, json, os, sys
 from datetime import datetime, timedelta
@@ -30,8 +30,8 @@ def load_bars(path):
 
 
 def window(bars, day):
-    s = datetime.strptime(day, "%Y-%m-%d").replace(hour=15)
-    e = s + timedelta(hours=10)
+    s = datetime.strptime(day, "%Y-%m-%d").replace(hour=7)
+    e = s + timedelta(hours=22)
     a, b = s.strftime("%Y-%m-%d %H:%M"), e.strftime("%Y-%m-%d %H:%M")
     return [x for x in bars if a <= x["t"] < b]
 
@@ -111,9 +111,9 @@ def run(day, bars_path):
     outlook = make3.parse(os.path.join(HERE, "outlooks", f"{day}.md"))
     bars = window(load_bars(bars_path), day)
     if len(bars) < 4:
-        sys.exit(f"not enough M15 bars in the 15:00–01:00 window for {day}")
+        sys.exit(f"not enough M15 bars in the 07:00–05:00 window for {day}")
     sigs, cursor, used = [], 1, set()
-    while len(sigs) < MAX_PER_DAY and cursor < len(bars):
+    while sum(1 for x in sigs if not x.get("skipped")) < MAX_PER_DAY and cursor < len(bars):
         best = None
         for k, s in enumerate(setups(outlook)):
             if k in used:
@@ -139,7 +139,7 @@ def run(day, bars_path):
         cursor = next((j for j, b in enumerate(bars) if b["t"] > res["exit_at"]), len(bars))
     os.makedirs(SIG_DIR, exist_ok=True)
     json.dump({"day": day, "signals": sigs}, open(os.path.join(SIG_DIR, f"{day}.json"), "w"), indent=1)
-    print(f"== {day} ({len(bars)} M15 bars, 15:00–01:00 MYT)")
+    print(f"== {day} ({len(bars)} M15 bars, 07:00–05:00 MYT)")
     for s in sigs:
         if s.get("skipped"):
             print(f"   skip {s['at'][11:16]} {s['setup']} ({s['why']})")

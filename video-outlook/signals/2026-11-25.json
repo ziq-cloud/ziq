@@ -3,6 +3,39 @@
  "signals": [
   {
    "skipped": true,
+   "why": "risk 14.1 / TP1 3554.0",
+   "at": "2026-11-25 07:30:00",
+   "setup": "Z1 SELL confirmation 3565\u20133576"
+  },
+  {
+   "skipped": true,
+   "why": "risk 16.4 / TP1 3565.0",
+   "at": "2026-11-25 08:45:00",
+   "setup": "Z3 BUY confirmation 3554\u20133547"
+  },
+  {
+   "at": "2026-11-25 13:00:00",
+   "setup": "Z3 SELL continuation 3554\u20133547",
+   "side": "SELL",
+   "entry": 3546.41,
+   "sl": 3556.0,
+   "tp": [
+    3515.0,
+    3504.0
+   ],
+   "risk": 9.59,
+   "exit": 3504.0,
+   "exit_at": "2026-11-25 19:45:00",
+   "reason": "TP2",
+   "tp_hit": [
+    1,
+    2
+   ],
+   "r": 4.42,
+   "pts": 42.41
+  },
+  {
+   "skipped": true,
    "why": "risk 41.5 / TP1 3547.0",
    "at": "2026-11-25 20:15:00",
    "setup": "Z4 BUY confirmation 3515\u20133504"
