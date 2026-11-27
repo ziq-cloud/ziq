@@ -1,0 +1,11 @@
+{
+ "day": "2026-11-27",
+ "signals": [
+  {
+   "skipped": true,
+   "why": "risk 15.3 / TP1 3577.0",
+   "at": "2026-11-27 09:00:00",
+   "setup": "Z3 BUY confirmation 3565\u20133561"
+  }
+ ]
+}
